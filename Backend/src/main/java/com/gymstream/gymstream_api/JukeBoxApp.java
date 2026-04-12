@@ -4,10 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class GymstreamApiApplication {
+public class JukeBoxApp {
 
 	public static void main(String[] args) {
-		SpringApplication.run(GymstreamApiApplication.class, args);
+		SpringApplication.run(JukeBoxApp.class, args);
 	}
 
 }
