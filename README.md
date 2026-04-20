@@ -88,15 +88,5 @@ npm run dev
 - Si cambias dependencias, vuelve a correr `./setup-all.ps1`.
 - Si tienes dudas, busca primero en los archivos README o pregunta a tu líder técnico.
 
----
-
-## Estado actual
-
-- [x] Backend funcional con endpoints de búsqueda y cola.
-- [x] Microservicio realtime-service listo y seguro.
-- [x] Frontend de usuario (MVP) listo, responsivo y con integración en tiempo real.
-- [ ] Host-player: estructura lista, pendiente de implementación final.
-
----
 
 ¡Listo para colaborar y mejorar juntos! 💪🎵
