@@ -1,15 +1,11 @@
 # Jukebox Project - Guía de Instalación y Uso
 
----
-
 ## Estructura del proyecto
 
 - **Backend/**: API en Spring Boot (Java) para lógica de negocio y búsqueda de canciones.
 - **realtime-service/**: Microservicio Node.js (Express + Socket.io) para comunicación en tiempo real entre backend y clientes.
 - **frontend-client/**: Web app para usuarios (React + Tailwind CSS). Permite buscar, agregar y votar canciones.
-- **host-player/**: Web app para el host (PC del gimnasio). (Estructura lista, implementación pendiente o similar a frontend-client).
-
----
+- **host-player/**: Web app para el host (PC del gimnasio).
 
 ## Instalación rápida (Windows)
 
@@ -21,8 +17,6 @@
 ```
 
 Esto instalará todas las dependencias necesarias en cada carpeta.
-
----
 
 ## ¿Qué hace cada módulo?
 
@@ -43,8 +37,6 @@ Esto instalará todas las dependencias necesarias en cada carpeta.
 ### host-player (React)
 - Pensado para el PC del gimnasio que reproduce la música.
 - Puede compartir lógica con frontend-client.
-
----
 
 ## ¿Cómo inicio cada módulo?
 
@@ -76,15 +68,3 @@ npm run dev
 cd host-player
 npm run dev
 ```
-
----
-
-## Consejos para desarrolladores junior
-
-- Lee los README de cada carpeta para detalles específicos.
-- Si algo falla, revisa que tengas Java (para Backend) y Node.js (para los demás) instalados.
-- Si cambias dependencias, vuelve a correr `./setup-all.ps1`.
-- Si tienes dudas, busca primero en los archivos README o pregunta a tu líder técnico.
-
-
-¡Listo para colaborar y mejorar juntos! 💪🎵
