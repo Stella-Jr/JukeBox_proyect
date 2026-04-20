@@ -1,7 +1,5 @@
 # Jukebox Project - Guía de Instalación y Uso
 
-Este proyecto es una Jukebox colaborativa para gimnasios. Permite que los socios busquen canciones de YouTube, las agreguen a una cola común y voten por sus favoritas, todo en tiempo real.
-
 ---
 
 ## Estructura del proyecto
