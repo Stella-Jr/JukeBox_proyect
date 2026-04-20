@@ -1,75 +1,50 @@
-# React + TypeScript + Vite
+# Frontend Client - Jukebox Project
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Esta es la aplicación web para usuarios del proyecto Jukebox, construida con React, TypeScript y Vite. Permite buscar canciones, agregarlas a la cola y votar.
 
-Currently, two official plugins are available:
+## Instalación
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. Asegúrate de tener Node.js instalado.
+2. Instala las dependencias:
 
-## React Compiler
-
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
-
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Uso en desarrollo
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Para ejecutar la aplicación en modo desarrollo (con hot reload):
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
+```
+
+Esto iniciará el servidor de desarrollo. Por defecto, estará disponible en http://localhost:5173/
+
+## Build para producción
+
+Para buildear la aplicación para producción:
+
+```bash
+npm run build
+```
+
+Los archivos optimizados se generarán en la carpeta `dist/`.
+
+## Ver la web
+
+Después de buildear, para ver la versión de producción localmente:
+
+```bash
+npm run preview
+```
+
+Esto iniciará un servidor local que servirá los archivos de `dist/`. Por defecto, estará en http://localhost:4173/
+
+## Linting
+
+Para ejecutar el linter:
+
+```bash
+npm run lint
 ```

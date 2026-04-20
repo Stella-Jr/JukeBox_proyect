@@ -18,6 +18,22 @@
 
 Esto instalará todas las dependencias necesarias en cada carpeta.
 
+## Ejecución rápida (todos los servicios)
+
+Para iniciar todos los servicios con un solo comando (en segundo plano):
+
+```powershell
+./start-all.ps1
+```
+
+Esto iniciará:
+- Backend en http://localhost:8080
+- Realtime Service en http://localhost:3000
+- Frontend Client en http://localhost:5173
+- Host Player en http://localhost:5174
+
+Asegúrate de que las dependencias estén instaladas primero con `./setup-all.ps1`.
+
 ## ¿Qué hace cada módulo?
 
 ### Backend (Spring Boot)
