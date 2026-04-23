@@ -17,10 +17,32 @@ public class AppUserService {
     }
 
     public AppUser joinRoom(String roomCode, String username) {
-        Room room = roomService.getRoomByCode(roomCode);
+        // Validar que el código de sala no sea nulo o vacío
+        if (roomCode == null || roomCode.trim().isEmpty()) {
+            throw new IllegalArgumentException("El código de la sala no puede estar vacío");
+        }
+        
+        // Validar que el nombre de usuario no sea nulo o vacío
+        if (username == null || username.trim().isEmpty()) {
+            throw new IllegalArgumentException("El nombre de usuario no puede estar vacío");
+        }
+        
+        // Validar longitud del nombre de usuario
+        if (username.length() > 50) {
+            throw new IllegalArgumentException("El nombre de usuario no puede exceder 50 caracteres");
+        }
+        
+        // Obtener la sala validada (lanza excepción si no existe)
+        Room room = roomService.getRoomByCode(roomCode.trim());
+        
+        // Validar que la sala esté activa
+        if (!Boolean.TRUE.equals(room.getIsActive())) {
+            throw new RuntimeException("La sala no está activa");
+        }
 
+        // Crear nuevo usuario
         AppUser user = new AppUser();
-        user.setUsername(username);
+        user.setUsername(username.trim());
         user.setRoom(room);
         user.setSessionToken(UUID.randomUUID().toString());
 

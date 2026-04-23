@@ -1,5 +1,6 @@
 package com.gymstream.gymstream_api.song;
 
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -15,7 +16,11 @@ public class SongController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<List<SongSearchResult>> search(@RequestParam String q) {
+    // Validar que el parámetro de búsqueda no esté vacío
+    public ResponseEntity<List<SongSearchResult>> search(
+            @RequestParam 
+            @NotBlank(message = "El término de búsqueda no puede estar vacío")
+            String q) {
         List<SongSearchResult> results = songService.searchSongs(q);
         return ResponseEntity.ok(results); 
     }

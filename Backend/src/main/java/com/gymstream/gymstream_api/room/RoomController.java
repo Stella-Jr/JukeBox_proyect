@@ -1,5 +1,6 @@
 package com.gymstream.gymstream_api.room;
 
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,8 +20,15 @@ public class RoomController {
     // Recibe: { "name": "Sala Principal" }
     // Devuelve: { "id": 1, "code": "A3F9K2" }
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createRoom(@RequestBody Map<String, String> body) {
+    // Validar que el request body tenga datos válidos
+    public ResponseEntity<Map<String, Object>> createRoom(@RequestBody @Valid Map<String, String> body) {
         String name = body.get("name");
+        
+        // Validar que el nombre esté presente
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("El nombre de la sala es requerido");
+        }
+        
         Room room = roomService.createRoom(name);
 
         return ResponseEntity

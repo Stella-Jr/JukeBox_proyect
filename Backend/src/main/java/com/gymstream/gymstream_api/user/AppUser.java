@@ -2,6 +2,7 @@ package com.gymstream.gymstream_api.user;
 
 import com.gymstream.gymstream_api.room.Room;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 
 @Data
@@ -13,16 +14,24 @@ public class AppUser {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Relación con la sala, obligatoria
+    @NotNull(message = "El usuario debe estar asociado a una sala")
     @ManyToOne
     @JoinColumn(name = "room_id")
     private Room room;
 
+    // Nombre de usuario, obligatorio y máximo 50 caracteres
+    @NotBlank(message = "El nombre de usuario no puede estar vacío")
+    @Size(min = 1, max = 50, message = "El nombre debe tener entre 1 y 50 caracteres")
     @Column(nullable = false, length = 50)
     private String username;
 
+    // Token de sesión único para autenticación
     @Column(name = "session_token", unique = true)
     private String sessionToken;
 
+    // Dirección IP del usuario, máximo 45 caracteres (IPv6)
+    @Size(max = 45, message = "La dirección IP no puede exceder 45 caracteres")
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
 }
