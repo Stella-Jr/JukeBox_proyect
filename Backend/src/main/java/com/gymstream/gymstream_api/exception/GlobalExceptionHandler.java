@@ -6,6 +6,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -48,6 +50,24 @@ public class GlobalExceptionHandler {
         
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
+
+    // Manejar ResponseStatusException (errores con status HTTP específico)
+    // Esto captura los errores que lanzamos con HttpStatus.CONFLICT, 
+    // HttpStatus.NOT_FOUND, etc. desde los Services
+    // Es importante que esté ANTES del handler de RuntimeException
+    // porque ResponseStatusException extiende RuntimeException
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatusException(
+        ResponseStatusException ex, WebRequest request) {
+    
+    Map<String, Object> response = new HashMap<>();
+    response.put("timestamp", LocalDateTime.now());
+    response.put("status", ex.getStatusCode().value());
+    response.put("error", ex.getReason());
+    response.put("message", ex.getReason());
+    
+    return new ResponseEntity<>(response, ex.getStatusCode());
+}
 
     // Manejar errores generales de ejecución (RuntimeException)
     @ExceptionHandler(RuntimeException.class)

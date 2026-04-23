@@ -29,6 +29,7 @@ public class QueueItem {
     private AppUser addedBy;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "status", columnDefinition = "VARCHAR(20)")
     private QueueStatus status = QueueStatus.PENDING;
 
     @Column(name = "votes_count")
@@ -41,6 +42,11 @@ public class QueueItem {
     private LocalDateTime playedAt;
 
     public enum QueueStatus {
-        PENDING, PLAYING, PLAYED, SKIPPED
+    PENDING, PLAYING, PLAYED, SKIPPED;
+
+    @Override
+    public String toString() {
+        return name().toLowerCase();
     }
+}
 }
