@@ -14,13 +14,11 @@ public class Song {
     private Long id;
 
     // ID único de YouTube, obligatorio y de máximo 20 caracteres
-    @NotBlank(message = "El ID de YouTube no puede estar vacío")
     @Size(max = 20, message = "El ID de YouTube no puede exceder 20 caracteres")
     @Column(name = "youtube_id", unique = true, nullable = false, length = 20)
     private String youtubeId;
 
     // Título de la canción, obligatorio
-    @NotBlank(message = "El título no puede estar vacío")
     @Column(nullable = false)
     private String title;
 

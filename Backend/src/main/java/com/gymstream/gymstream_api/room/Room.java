@@ -15,7 +15,6 @@ public class Room {
     private Long id;
 
     // Código único de la sala (6 caracteres), obligatorio
-    @NotBlank(message = "El código de la sala no puede estar vacío")
     @Size(max = 10, message = "El código no puede exceder 10 caracteres")
     @Column(unique = true, nullable = false, length = 10)
     private String code;

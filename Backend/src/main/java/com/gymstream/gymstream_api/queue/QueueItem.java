@@ -43,10 +43,5 @@ public class QueueItem {
 
     public enum QueueStatus {
     PENDING, PLAYING, PLAYED, SKIPPED;
-
-    @Override
-    public String toString() {
-        return name().toLowerCase();
     }
-}
 }

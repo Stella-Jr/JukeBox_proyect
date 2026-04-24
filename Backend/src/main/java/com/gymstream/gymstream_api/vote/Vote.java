@@ -5,6 +5,7 @@ import com.gymstream.gymstream_api.user.AppUser;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import org.hibernate.annotations.CreationTimestamp;
 
 @Data
 @Entity
@@ -24,6 +25,15 @@ public class Vote {
     @JoinColumn(name = "user_id")
     private AppUser user;
 
-    @Column(name = "created_at")
-    private LocalDateTime createdAt = LocalDateTime.now();
+    // Usar @CreationTimestamp - Hibernate lo captura automáticamente
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    private LocalDateTime createdAt;
+
+    @Column(name = "vote_type")
+    private Integer voteType = 1;
+
+    // Constructor vacío requerido por Hibernate
+    public Vote() {
+    }
 }

@@ -11,13 +11,12 @@ import com.gymstream.gymstream_api.vote.VoteRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
 public class QueueService {
 
-    // Inyectamos todos los repositorios que necesitamos
-    // Spring los crea y entrega automáticamente
     private final QueueRepository queueRepository;
     private final VoteRepository voteRepository;
     private final SongRepository songRepository;
@@ -51,7 +50,6 @@ public class QueueService {
                         HttpStatus.NOT_FOUND, "Usuario no encontrado"));
 
         // 3. Buscamos si la canción ya existe en nuestra tabla songs
-        // Si no existe, la creamos. Esto evita duplicados en la tabla songs
         Song song = songRepository.findByYoutubeId(ytId)
                 .orElseGet(() -> {
                     Song newSong = new Song();
@@ -62,16 +60,12 @@ public class QueueService {
                 });
 
         // 4. LÓGICA DE DUPLICADOS
-        // Verificamos si la canción ya está en la cola de esta sala con status PENDING
         Optional<QueueItem> existingItem = queueRepository
                 .findByRoomIdAndSongIdAndStatus(roomId, song.getId(), QueueItem.QueueStatus.PENDING);
 
         if (existingItem.isPresent()) {
-            // La canción YA está en la cola → solo sumamos un voto
             QueueItem item = existingItem.get();
 
-            // Verificamos que el usuario no haya votado ya esta canción
-            // Si ya votó, lanzamos error 409 (Conflict)
             boolean yaVoto = voteRepository
                     .findByQueueItemIdAndUserId(item.getId(), userId)
                     .isPresent();
@@ -81,27 +75,23 @@ public class QueueService {
                         HttpStatus.CONFLICT, "Ya votaste esta canción");
             }
 
-            // Registramos el voto
             Vote vote = new Vote();
             vote.setQueueItem(item);
             vote.setUser(user);
             voteRepository.save(vote);
 
-            // Incrementamos el contador de votos en el QueueItem
             item.setVotesCount(item.getVotesCount() + 1);
             return queueRepository.save(item);
 
         } else {
-            // La canción NO está en la cola → la agregamos como nueva
             QueueItem newItem = new QueueItem();
             newItem.setRoom(room);
             newItem.setSong(song);
             newItem.setAddedBy(user);
             newItem.setStatus(QueueItem.QueueStatus.PENDING);
-            newItem.setVotesCount(1); // voto inicial del creador
+            newItem.setVotesCount(1);
             QueueItem savedItem = queueRepository.save(newItem);
 
-            // Registramos el voto inicial del usuario que agregó la canción
             Vote vote = new Vote();
             vote.setQueueItem(savedItem);
             vote.setUser(user);
@@ -109,5 +99,49 @@ public class QueueService {
 
             return savedItem;
         }
+    }
+
+    public QueueItem vote(Long queueItemId, Long userId) {
+
+        // 1. Buscamos el item de la cola
+        QueueItem item = queueRepository.findById(queueItemId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Canción no encontrada en la cola"));
+
+        // 2. Buscamos el usuario
+        AppUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Usuario no encontrado"));
+
+        // 3. REGLA 1 — Voto único por canción
+        boolean yaVoto = voteRepository
+                .findByQueueItemIdAndUserId(queueItemId, userId)
+                .isPresent();
+
+        if (yaVoto) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "Ya votaste esta canción");
+        }
+
+        // 4. REGLA 2 — Límite de tiempo entre votos
+        LocalDateTime tresMinutosAtras = LocalDateTime.now().minusMinutes(3);
+
+        boolean votoReciente = voteRepository
+                .existsRecentVoteByUserInRoom(userId, item.getRoom().getId(), tresMinutosAtras);
+                if (votoReciente) {
+        throw new ResponseStatusException(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "Debés esperar 3 minutos entre votos");
+        }
+
+        // 5. Registramos el voto
+        Vote vote = new Vote();
+        vote.setQueueItem(item);
+        vote.setUser(user);
+        voteRepository.save(vote);
+
+        // 6. Incrementamos el contador de votos
+        item.setVotesCount(item.getVotesCount() + 1);
+        return queueRepository.save(item);
     }
 }

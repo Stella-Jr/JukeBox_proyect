@@ -5,6 +5,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -123,49 +125,53 @@ public class SongService {
         return results;
     }
 
-    // Búsqueda normal por texto — igual que antes
     private List<SongSearchResult> searchByQuery(String query) {
 
-        List<SongSearchResult> results = new ArrayList<>();
+    List<SongSearchResult> results = new ArrayList<>();
 
-        try {
-            String responseBody = restClient.get()
-                    .uri(YOUTUBE_SEARCH_URL +
-                            "?part=snippet" +
-                            "&q=" + query +
-                            "&type=video" +
-                            "&videoEmbeddable=true" +
-                            "&maxResults=8" +
-                            "&key=" + apiKey)
-                    .retrieve()
-                    .body(String.class);
+    try {
+        // URLEncoder convierte caracteres especiales a formato válido para URLs
+        // Por ejemplo: "rock en español" → "rock+en+espa%C3%B1ol"
+        // Sin esto, los espacios y tildes rompen la URL y YouTube no responde bien
+        String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
 
-            JsonNode response = objectMapper.readTree(responseBody);
+        String responseBody = restClient.get()
+                .uri(YOUTUBE_SEARCH_URL +
+                        "?part=snippet" +
+                        "&q=" + encodedQuery +
+                        "&type=video" +
+                        "&videoEmbeddable=true" +
+                        "&maxResults=8" +
+                        "&key=" + apiKey)
+                .retrieve()
+                .body(String.class);
 
-            if (response != null && response.has("items")) {
-                response.get("items").forEach(item -> {
-                    try {
-                        String videoId = item.get("id").get("videoId").asText();
-                        JsonNode snippet = item.get("snippet");
-                        String title = snippet.get("title").asText();
-                        String channelTitle = snippet.get("channelTitle").asText();
-                        String thumbnail = snippet
-                                .get("thumbnails")
-                                .get("medium")
-                                .get("url")
-                                .asText();
+        JsonNode response = objectMapper.readTree(responseBody);
 
-                        results.add(new SongSearchResult(videoId, title, channelTitle, thumbnail));
-                    } catch (Exception e) {
-                        System.err.println("Error al procesar item: " + e.getMessage());
-                    }
-                });
-            }
+        if (response != null && response.has("items")) {
+            response.get("items").forEach(item -> {
+                try {
+                    String videoId = item.get("id").get("videoId").asText();
+                    JsonNode snippet = item.get("snippet");
+                    String title = snippet.get("title").asText();
+                    String channelTitle = snippet.get("channelTitle").asText();
+                    String thumbnail = snippet
+                            .get("thumbnails")
+                            .get("medium")
+                            .get("url")
+                            .asText();
 
-        } catch (Exception e) {
-            System.err.println("Error al buscar canciones: " + e.getMessage());
+                    results.add(new SongSearchResult(videoId, title, channelTitle, thumbnail));
+                } catch (Exception e) {
+                    System.err.println("Error al procesar item: " + e.getMessage());
+                }
+            });
         }
 
-        return results;
+    } catch (Exception e) {
+        System.err.println("Error al buscar canciones: " + e.getMessage());
+    }
+
+    return results;
     }
 }

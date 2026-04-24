@@ -33,4 +33,24 @@ public class QueueController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(item);
     }
+
+    // POST /api/queue/vote/{queueId}
+    // Registra un voto en una canción de la cola
+    // @PathVariable captura el {queueId} de la URL
+    // Recibe: { "userId": 1 }
+    // Devuelve: 200 OK con el QueueItem actualizado y su nuevo score
+    @PostMapping("/vote/{queueId}")
+    public ResponseEntity<Map<String, Object>> vote(
+        @PathVariable Long queueId,
+        @RequestBody Map<String, Object> body) {
+
+    Long userId = ((Number) body.get("userId")).longValue();
+
+    QueueItem item = queueService.vote(queueId, userId);
+
+    return ResponseEntity.ok(Map.of(
+            "newScore", item.getVotesCount(),
+            "queueId", item.getId()
+        ));
+    }
 }
