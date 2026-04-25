@@ -1,5 +1,7 @@
 package com.gymstream.gymstream_api.queue;
 
+import com.gymstream.gymstream_api.cooldown.Cooldown;
+import com.gymstream.gymstream_api.cooldown.CooldownRepository;
 import com.gymstream.gymstream_api.room.Room;
 import com.gymstream.gymstream_api.room.RoomRepository;
 import com.gymstream.gymstream_api.song.Song;
@@ -16,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Optional;
 import java.util.List;
 
+
 @Service
 public class QueueService {
 
@@ -24,18 +27,21 @@ public class QueueService {
     private final SongRepository songRepository;
     private final RoomRepository roomRepository;
     private final AppUserRepository userRepository;
+    private final CooldownRepository cooldownRepository;
 
     public QueueService(
             QueueRepository queueRepository,
             VoteRepository voteRepository,
             SongRepository songRepository,
             RoomRepository roomRepository,
-            AppUserRepository userRepository) {
+            AppUserRepository userRepository,
+            CooldownRepository cooldownRepository) {
         this.queueRepository = queueRepository;
         this.voteRepository = voteRepository;
         this.songRepository = songRepository;
         this.roomRepository = roomRepository;
         this.userRepository = userRepository;
+        this.cooldownRepository = cooldownRepository;
     }
 
     public QueueItem addToQueue(String ytId, String title, String artist,
@@ -60,6 +66,30 @@ public class QueueService {
                     newSong.setArtist(artist);
                     return songRepository.save(newSong);
                 });
+        
+        // 3.5 VALIDACIÓN DE COOLDOWN
+        // Verificamos si la canción está en periodo de cooldown
+        // Si alguien la intenta agregar antes de que pasen 15 minutos, la bloqueamos
+        Optional<Cooldown> cooldownActivo = cooldownRepository
+                .findByRoomIdAndIdentifierAndTypeAndExpiresAtAfter(
+                roomId,
+                song.getYoutubeId(),
+                Cooldown.CooldownType.SONG,
+                LocalDateTime.now()
+        );
+
+        if (cooldownActivo.isPresent()) {
+            // Calculamos cuántos minutos faltan para que expire el cooldown
+            long minutosRestantes = java.time.Duration.between(
+                    LocalDateTime.now(),
+                    cooldownActivo.get().getExpiresAt()
+            ).toMinutes() + 1;
+
+            throw new ResponseStatusException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Esta canción no puede agregarse por " + minutosRestantes + " minutos más"
+            );
+        }
 
         // 4. LÓGICA DE DUPLICADOS
         Optional<QueueItem> existingItem = queueRepository
@@ -134,7 +164,7 @@ public class QueueService {
         if (votoReciente) {
             throw new ResponseStatusException(
                     HttpStatus.TOO_MANY_REQUESTS,
-                    "Debés esperar 3 minutos entre votos");
+                    "Debés esperar un momento antes de votar otra canción");
         }
 
         // 5. Registramos el voto
@@ -152,11 +182,11 @@ public class QueueService {
 
         // 1. Obtenemos todas las canciones PENDING de la sala
         List<QueueItem> pendingItems = queueRepository
-            .findByRoomIdAndStatus(roomId, QueueItem.QueueStatus.PENDING);
+                .findByRoomIdAndStatus(roomId, QueueItem.QueueStatus.PENDING);
 
         // 2. Obtenemos la canción que está PLAYING (si hay una)
         List<QueueItem> playingItems = queueRepository
-            .findByRoomIdAndStatus(roomId, QueueItem.QueueStatus.PLAYING);
+                .findByRoomIdAndStatus(roomId, QueueItem.QueueStatus.PLAYING);
  
         // 3. Calculamos el score de cada canción PENDING
         // Score = (votos × 10) + minutos en espera
@@ -218,44 +248,51 @@ public class QueueService {
         if (!playingItems.isEmpty()) {
             QueueItem currentlyPlaying = playingItems.get(0);
             currentlyPlaying.setStatus(QueueItem.QueueStatus.PLAYED);
-        currentlyPlaying.setPlayedAt(LocalDateTime.now());
-        queueRepository.save(currentlyPlaying);
-    }
+            currentlyPlaying.setPlayedAt(LocalDateTime.now());
+            queueRepository.save(currentlyPlaying);
 
-    // 2. Obtenemos todas las canciones PENDING y calculamos sus scores
-    // Reutilizamos la misma lógica del algoritmo de prioridad
-    List<QueueItem> pendingItems = queueRepository
-            .findByRoomIdAndStatus(roomId, QueueItem.QueueStatus.PENDING);
-
-    if (pendingItems.isEmpty()) {
-        throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND, "No hay canciones en la cola");
-    }
-
-    // 3. Calculamos el score de cada canción para encontrar la mejor
-    QueueItem bestItem = null;
-    double bestScore = Double.NEGATIVE_INFINITY;
-
-    // Obtenemos el artista de la canción que acabó de sonar
-    // para aplicar la regla anti-artista-repetido
-    String lastArtist = null;
-    if (!playingItems.isEmpty()) {
-        lastArtist = playingItems.get(0).getSong().getArtist();
-    }
-
-    for (QueueItem item : pendingItems) {
-        long minutosEspera = java.time.Duration.between(
-                item.getAddedAt(),
-                LocalDateTime.now()
-        ).toMinutes();
-
-        double score = (item.getVotesCount() * 10.0) + minutosEspera;
-
-        // Penalizamos si es el mismo artista que la canción anterior
-        if (lastArtist != null &&
-            lastArtist.equalsIgnoreCase(item.getSong().getArtist())) {
-            score -= 1000;
+            // Registramos el cooldown de 15 minutos para esta canción
+            Cooldown cooldown = new Cooldown();
+            cooldown.setRoom(currentlyPlaying.getRoom());
+            cooldown.setIdentifier(currentlyPlaying.getSong().getYoutubeId());
+            cooldown.setType(Cooldown.CooldownType.SONG);
+            cooldown.setExpiresAt(LocalDateTime.now().plusMinutes(15));
+            cooldownRepository.save(cooldown);
         }
+        // 2. Obtenemos todas las canciones PENDING y calculamos sus scores
+        // Reutilizamos la misma lógica del algoritmo de prioridad
+        List<QueueItem> pendingItems = queueRepository
+                .findByRoomIdAndStatus(roomId, QueueItem.QueueStatus.PENDING);
+
+        if (pendingItems.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "No hay canciones en la cola");
+        }
+
+        // 3. Calculamos el score de cada canción para encontrar la mejor
+        QueueItem bestItem = null;
+        double bestScore = Double.NEGATIVE_INFINITY;
+
+        // Obtenemos el artista de la canción que acabó de sonar
+        // para aplicar la regla anti-artista-repetido
+        String lastArtist = null;
+        if (!playingItems.isEmpty()) {
+            lastArtist = playingItems.get(0).getSong().getArtist();
+        }
+
+        for (QueueItem item : pendingItems) {
+            long minutosEspera = java.time.Duration.between(
+                    item.getAddedAt(),
+                    LocalDateTime.now()
+            ).toMinutes();
+
+            double score = (item.getVotesCount() * 10.0) + minutosEspera;
+
+            // Penalizamos si es el mismo artista que la canción anterior
+            if (lastArtist != null &&
+                lastArtist.equalsIgnoreCase(item.getSong().getArtist())) {
+                score -= 1000;
+            }
 
             // Guardamos el item con mejor score
             if (score > bestScore) {
@@ -276,5 +313,4 @@ public class QueueService {
         // 5. Devolvemos los datos para que el IFrame de YouTube cargue la canción
         return new QueueItemDTO(savedItem, bestScore);
     }
-
 }
