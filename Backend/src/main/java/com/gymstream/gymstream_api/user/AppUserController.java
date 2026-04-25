@@ -15,7 +15,6 @@ public class AppUserController {
     }
 
     @PostMapping("/join")
-    // Validar que el código de sala y nombre de usuario no estén vacíos
     public ResponseEntity<Map<String, Object>> joinRoom(@RequestBody Map<String, String> body) {
         String code = body.get("code");
         String username = body.get("username");

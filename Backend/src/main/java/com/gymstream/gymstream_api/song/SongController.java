@@ -16,7 +16,6 @@ public class SongController {
     }
 
     @GetMapping("/search")
-    // Validar que el parámetro de búsqueda no esté vacío
     public ResponseEntity<List<SongSearchResult>> search(
             @RequestParam 
             @NotBlank(message = "El término de búsqueda no puede estar vacío")

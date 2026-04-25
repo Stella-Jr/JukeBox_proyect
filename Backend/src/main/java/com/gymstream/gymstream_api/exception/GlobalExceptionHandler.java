@@ -70,6 +70,8 @@ public class GlobalExceptionHandler {
     }
 
     // Manejar errores generales de ejecución (RuntimeException)
+    // Esto incluye todos los errores no capturados por handlers anteriores
+    // Intenta inferir el código HTTP basado en el mensaje
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntimeException(
             RuntimeException ex, WebRequest request) {

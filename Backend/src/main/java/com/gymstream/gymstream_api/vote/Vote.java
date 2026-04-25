@@ -7,6 +7,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import org.hibernate.annotations.CreationTimestamp;
 
+// Restricción UNIQUE(queue_id, user_id): Un usuario solo puede votar UNA VEZ por canción
 @Data
 @Entity
 @Table(name = "votes",

@@ -40,7 +40,8 @@ public class AppUserService {
             throw new RuntimeException("La sala no está activa");
         }
 
-        // Crear nuevo usuario
+        // Crear nuevo usuario con token único de sesión
+        // El sessionToken se usa para identificar la sesión del usuario en el cliente
         AppUser user = new AppUser();
         user.setUsername(username.trim());
         user.setRoom(room);

@@ -19,7 +19,6 @@ public class RoomController {
     // Recibe: { "name": "Sala Principal" }
     // Devuelve: { "id": 1, "code": "A3F9K2" }
     @PostMapping
-    // Validar que el request body tenga datos válidos
     public ResponseEntity<Map<String, Object>> createRoom(@RequestBody Map<String, String> body) {
         String name = body.get("name");
         
