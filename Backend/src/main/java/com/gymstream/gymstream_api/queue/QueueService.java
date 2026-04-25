@@ -12,7 +12,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Optional;
+import java.util.List;
 
 @Service
 public class QueueService {
@@ -144,4 +146,64 @@ public class QueueService {
         item.setVotesCount(item.getVotesCount() + 1);
         return queueRepository.save(item);
     }
+
+    public List<QueueItemDTO> getQueue(Long roomId) {
+
+        // 1. Obtenemos todas las canciones PENDING de la sala
+        List<QueueItem> pendingItems = queueRepository
+            .findByRoomIdAndStatus(roomId, QueueItem.QueueStatus.PENDING);
+
+        // 2. Obtenemos la canción que está PLAYING (si hay una)
+        List<QueueItem> playingItems = queueRepository
+            .findByRoomIdAndStatus(roomId, QueueItem.QueueStatus.PLAYING);
+ 
+        // 3. Calculamos el score de cada canción PENDING
+        // Score = (votos × 10) + minutos en espera
+        // Esto hace que canciones con pocos votos pero mucho tiempo de espera
+        // también puedan subir en la cola
+        List<QueueItemDTO> result = new ArrayList<>();
+
+        // Primero detectamos el artista de la canción que está sonando
+        // para aplicar la penalización anti-artista-repetido
+        String currentArtist = null;
+        if (!playingItems.isEmpty()) {
+            QueueItem playing = playingItems.get(0);
+            currentArtist = playing.getSong().getArtist();
+            // La canción PLAYING siempre va primero con score máximo
+            result.add(new QueueItemDTO(playing, Double.MAX_VALUE));
+        }
+
+        // Calculamos el score de cada canción pendiente
+        String artistToAvoid = currentArtist; // variable final para usar en lambda
+        List<QueueItemDTO> pendingDTOs = new ArrayList<>();
+
+        for (QueueItem item : pendingItems) {
+        // Calculamos los minutos que lleva esperando en la cola
+        long minutosEspera = java.time.Duration.between(
+                item.getAddedAt(),
+                java.time.LocalDateTime.now()
+        ).toMinutes();
+
+        // Fórmula del score
+        double score = (item.getVotesCount() * 10.0) + minutosEspera;
+
+        // REGLA ANTI-ARTISTA-REPETIDO
+        // Si el artista es el mismo que el que está sonando, penalizamos
+        // restándole 1000 puntos al score (lo manda casi al final)
+        if (artistToAvoid != null &&
+            artistToAvoid.equalsIgnoreCase(item.getSong().getArtist())) {
+            score -= 1000;
+        }
+
+        pendingDTOs.add(new QueueItemDTO(item, score));
+        }
+
+        // Ordenamos por score de mayor a menor
+        pendingDTOs.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
+
+        // Agregamos las PENDING ordenadas después de la PLAYING
+        result.addAll(pendingDTOs);
+
+        return result;
+        }
 }

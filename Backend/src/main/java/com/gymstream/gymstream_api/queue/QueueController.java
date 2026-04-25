@@ -1,5 +1,6 @@
 package com.gymstream.gymstream_api.queue;
 
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -53,4 +54,13 @@ public class QueueController {
             "queueId", item.getId()
         ));
     }
+
+    // GET /api/queue/{roomId}
+    // Devuelve la cola ordenada por score (votos + tiempo de espera)
+    // La canción PLAYING siempre va primero
+    @GetMapping("/{roomId}")
+    public ResponseEntity<List<QueueItemDTO>> getQueue(@PathVariable Long roomId) {
+        List<QueueItemDTO> queue = queueService.getQueue(roomId);
+        return ResponseEntity.ok(queue);
+    }    
 }
