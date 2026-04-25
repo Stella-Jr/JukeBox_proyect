@@ -1,9 +1,9 @@
 package com.gymstream.gymstream_api.queue;
 
-import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -42,16 +42,16 @@ public class QueueController {
     // Devuelve: 200 OK con el QueueItem actualizado y su nuevo score
     @PostMapping("/vote/{queueId}")
     public ResponseEntity<Map<String, Object>> vote(
-        @PathVariable Long queueId,
-        @RequestBody Map<String, Object> body) {
+            @PathVariable Long queueId,
+            @RequestBody Map<String, Object> body) {
 
-    Long userId = ((Number) body.get("userId")).longValue();
+        Long userId = ((Number) body.get("userId")).longValue();
 
-    QueueItem item = queueService.vote(queueId, userId);
+        QueueItem item = queueService.vote(queueId, userId);
 
-    return ResponseEntity.ok(Map.of(
-            "newScore", item.getVotesCount(),
-            "queueId", item.getId()
+        return ResponseEntity.ok(Map.of(
+                "newScore", item.getVotesCount(),
+                "queueId", item.getId()
         ));
     }
 

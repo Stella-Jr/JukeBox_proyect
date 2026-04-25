@@ -130,10 +130,11 @@ public class QueueService {
 
         boolean votoReciente = voteRepository
                 .existsRecentVoteByUserInRoom(userId, item.getRoom().getId(), tresMinutosAtras);
-                if (votoReciente) {
-        throw new ResponseStatusException(
-            HttpStatus.TOO_MANY_REQUESTS,
-            "Debés esperar 3 minutos entre votos");
+
+        if (votoReciente) {
+            throw new ResponseStatusException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Debés esperar 3 minutos entre votos");
         }
 
         // 5. Registramos el voto
@@ -178,24 +179,24 @@ public class QueueService {
         List<QueueItemDTO> pendingDTOs = new ArrayList<>();
 
         for (QueueItem item : pendingItems) {
-        // Calculamos los minutos que lleva esperando en la cola
-        long minutosEspera = java.time.Duration.between(
-                item.getAddedAt(),
-                java.time.LocalDateTime.now()
-        ).toMinutes();
+            // Calculamos los minutos que lleva esperando en la cola
+            long minutosEspera = java.time.Duration.between(
+                    item.getAddedAt(),
+                    java.time.LocalDateTime.now()
+            ).toMinutes();
 
-        // Fórmula del score
-        double score = (item.getVotesCount() * 10.0) + minutosEspera;
+            // Fórmula del score
+            double score = (item.getVotesCount() * 10.0) + minutosEspera;
 
-        // REGLA ANTI-ARTISTA-REPETIDO
-        // Si el artista es el mismo que el que está sonando, penalizamos
-        // restándole 1000 puntos al score (lo manda casi al final)
-        if (artistToAvoid != null &&
-            artistToAvoid.equalsIgnoreCase(item.getSong().getArtist())) {
-            score -= 1000;
-        }
+            // REGLA ANTI-ARTISTA-REPETIDO
+            // Si el artista es el mismo que el que está sonando, penalizamos
+            // restándole 1000 puntos al score (lo manda casi al final)
+            if (artistToAvoid != null &&
+                artistToAvoid.equalsIgnoreCase(item.getSong().getArtist())) {
+                score -= 1000;
+            }
 
-        pendingDTOs.add(new QueueItemDTO(item, score));
+            pendingDTOs.add(new QueueItemDTO(item, score));
         }
 
         // Ordenamos por score de mayor a menor
@@ -205,5 +206,6 @@ public class QueueService {
         result.addAll(pendingDTOs);
 
         return result;
-        }
+    }
+
 }

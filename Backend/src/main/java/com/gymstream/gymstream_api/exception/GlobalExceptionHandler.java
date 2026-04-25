@@ -58,16 +58,16 @@ public class GlobalExceptionHandler {
     // porque ResponseStatusException extiende RuntimeException
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> handleResponseStatusException(
-        ResponseStatusException ex, WebRequest request) {
-    
-    Map<String, Object> response = new HashMap<>();
-    response.put("timestamp", LocalDateTime.now());
-    response.put("status", ex.getStatusCode().value());
-    response.put("error", ex.getReason());
-    response.put("message", ex.getReason());
-    
-    return new ResponseEntity<>(response, ex.getStatusCode());
-}
+            ResponseStatusException ex, WebRequest request) {
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", ex.getStatusCode().value());
+        response.put("error", ex.getReason());
+        response.put("message", ex.getReason());
+
+        return new ResponseEntity<>(response, ex.getStatusCode());
+    }
 
     // Manejar errores generales de ejecución (RuntimeException)
     @ExceptionHandler(RuntimeException.class)

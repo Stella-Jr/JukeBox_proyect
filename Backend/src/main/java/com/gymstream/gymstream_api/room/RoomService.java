@@ -3,7 +3,7 @@ package com.gymstream.gymstream_api.room;
 import org.springframework.stereotype.Service;
 import java.util.UUID;
 
-@Service  
+@Service
 public class RoomService {
 
     private final RoomRepository roomRepository;
