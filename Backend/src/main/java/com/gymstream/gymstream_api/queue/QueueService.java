@@ -208,4 +208,73 @@ public class QueueService {
         return result;
     }
 
+    public QueueItemDTO nextTrack(Long roomId) {
+
+        // 1. Buscamos la canción que está sonando actualmente
+        List<QueueItem> playingItems = queueRepository
+                .findByRoomIdAndStatus(roomId, QueueItem.QueueStatus.PLAYING);
+
+        // Si hay una canción sonando, la marcamos como PLAYED
+        if (!playingItems.isEmpty()) {
+            QueueItem currentlyPlaying = playingItems.get(0);
+            currentlyPlaying.setStatus(QueueItem.QueueStatus.PLAYED);
+        currentlyPlaying.setPlayedAt(LocalDateTime.now());
+        queueRepository.save(currentlyPlaying);
+    }
+
+    // 2. Obtenemos todas las canciones PENDING y calculamos sus scores
+    // Reutilizamos la misma lógica del algoritmo de prioridad
+    List<QueueItem> pendingItems = queueRepository
+            .findByRoomIdAndStatus(roomId, QueueItem.QueueStatus.PENDING);
+
+    if (pendingItems.isEmpty()) {
+        throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND, "No hay canciones en la cola");
+    }
+
+    // 3. Calculamos el score de cada canción para encontrar la mejor
+    QueueItem bestItem = null;
+    double bestScore = Double.NEGATIVE_INFINITY;
+
+    // Obtenemos el artista de la canción que acabó de sonar
+    // para aplicar la regla anti-artista-repetido
+    String lastArtist = null;
+    if (!playingItems.isEmpty()) {
+        lastArtist = playingItems.get(0).getSong().getArtist();
+    }
+
+    for (QueueItem item : pendingItems) {
+        long minutosEspera = java.time.Duration.between(
+                item.getAddedAt(),
+                LocalDateTime.now()
+        ).toMinutes();
+
+        double score = (item.getVotesCount() * 10.0) + minutosEspera;
+
+        // Penalizamos si es el mismo artista que la canción anterior
+        if (lastArtist != null &&
+            lastArtist.equalsIgnoreCase(item.getSong().getArtist())) {
+            score -= 1000;
+        }
+
+            // Guardamos el item con mejor score
+            if (score > bestScore) {
+                bestScore = score;
+                bestItem = item;
+            }
+        }
+
+        // Si no hay canciones pendientes, retornamos null
+        if (bestItem == null) {
+            return null;
+        }
+
+        // 4. Marcamos la siguiente canción como PLAYING
+        bestItem.setStatus(QueueItem.QueueStatus.PLAYING);
+        QueueItem savedItem = queueRepository.save(bestItem);
+
+        // 5. Devolvemos los datos para que el IFrame de YouTube cargue la canción
+        return new QueueItemDTO(savedItem, bestScore);
+    }
+
 }

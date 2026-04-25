@@ -63,4 +63,14 @@ public class QueueController {
         List<QueueItemDTO> queue = queueService.getQueue(roomId);
         return ResponseEntity.ok(queue);
     }    
+
+    // PATCH /api/queue/next-track/{roomId}
+    // Lo llama la PC Host cuando termina una canción
+    // Marca la actual como PLAYED, busca la siguiente y la marca como PLAYING
+    @PatchMapping("/next-track/{roomId}")
+    public ResponseEntity<QueueItemDTO> nextTrack(@PathVariable Long roomId) {
+        QueueItemDTO next = queueService.nextTrack(roomId);
+
+        return ResponseEntity.ok(next);
+    }
 }
