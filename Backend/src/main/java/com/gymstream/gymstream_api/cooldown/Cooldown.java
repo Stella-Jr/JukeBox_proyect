@@ -27,6 +27,8 @@ public class Cooldown {
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
+    // SONG: Bloquea agregar la misma canción (15 minutos)
+    // ARTIST: Bloquea agregar canciones del mismo artista (futuro)
     public enum CooldownType {
         SONG, ARTIST
     }

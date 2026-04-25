@@ -39,7 +39,9 @@ public class RoomService {
                 .orElseThrow(() -> new RuntimeException("Sala no encontrada con código: " + code));
     }
 
-    // Generar código único de 6 caracteres
+    // Generar código único de 6 caracteres alfanuméricos (uppercase)
+    // Usado para que los usuarios puedan unirse fácilmente a una sala
+    // Ejemplo: "A3F9K2"
     private String generateCode() {
         return UUID.randomUUID()
                 .toString()

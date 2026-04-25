@@ -238,6 +238,10 @@ public class QueueService {
         return result;
     }
 
+    // Selecciona la siguiente canción a reproducir:
+    // 1. Marca la actual como PLAYED y registra cooldown de 15 min
+    // 2. Calcula score de canciones pendientes (votos + tiempo espera - penalización artista)
+    // 3. Devuelve la canción con mejor score como PLAYING
     public QueueItemDTO nextTrack(Long roomId) {
 
         // 1. Buscamos la canción que está sonando actualmente
