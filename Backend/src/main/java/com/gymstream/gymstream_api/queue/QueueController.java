@@ -22,18 +22,18 @@ public class QueueController {
     @PostMapping("/add")
     public ResponseEntity<QueueItem> addToQueue(@RequestBody Map<String, Object> body) {
 
-        String ytId = (String) body.get("ytId");
-        String title = (String) body.get("title");
-        String artist = (String) body.get("artist");
+    String ytId = (String) body.get("ytId");
+    String title = (String) body.get("title");
+    String artist = (String) body.get("artist");
+    String thumb = (String) body.get("thumb"); // ← nuevo
 
-        // Los números en JSON llegan como Integer, los convertimos a Long
-        Long roomId = ((Number) body.get("roomId")).longValue();
-        Long userId = ((Number) body.get("userId")).longValue();
+    Long roomId = ((Number) body.get("roomId")).longValue();
+    Long userId = ((Number) body.get("userId")).longValue();
 
-        QueueItem item = queueService.addToQueue(ytId, title, artist, roomId, userId);
+    QueueItem item = queueService.addToQueue(ytId, title, artist, thumb, roomId, userId);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(item);
-    }
+    return ResponseEntity.status(HttpStatus.CREATED).body(item);
+}
 
     // POST /api/queue/vote/{queueId}
     // Registra un voto en una canción de la cola

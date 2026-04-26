@@ -44,8 +44,8 @@ public class QueueService {
         this.cooldownRepository = cooldownRepository;
     }
 
-    public QueueItem addToQueue(String ytId, String title, String artist,
-                                Long roomId, Long userId) {
+    public QueueItem addToQueue(String ytId, String title, String artist, 
+                            String thumb, Long roomId, Long userId) {
 
         // 1. Buscamos la sala. Si no existe, lanzamos error 404
         Room room = roomRepository.findById(roomId)
@@ -59,13 +59,14 @@ public class QueueService {
 
         // 3. Buscamos si la canción ya existe en nuestra tabla songs
         Song song = songRepository.findByYoutubeId(ytId)
-                .orElseGet(() -> {
-                    Song newSong = new Song();
-                    newSong.setYoutubeId(ytId);
-                    newSong.setTitle(title);
-                    newSong.setArtist(artist);
-                    return songRepository.save(newSong);
-                });
+        .orElseGet(() -> {
+            Song newSong = new Song();
+            newSong.setYoutubeId(ytId);
+            newSong.setTitle(title);
+            newSong.setArtist(artist);
+            newSong.setThumbnailUrl(thumb); // ← agregar esto
+            return songRepository.save(newSong);
+        });
         
         // 3.5 VALIDACIÓN DE COOLDOWN
         // Verificamos si la canción está en periodo de cooldown

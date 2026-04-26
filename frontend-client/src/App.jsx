@@ -7,7 +7,7 @@ const STORAGE_KEYS = {
   votedSongs: 'jukebox_votedSongs',
 }
 
-const SERVER_BASE = '/api'
+const SERVER_BASE = "http://localhost:8080/api";
 const SOCKET_URL = 'http://localhost:3000'
 
 function App() {
@@ -98,7 +98,7 @@ function App() {
 
     const fetchQueue = async () => {
       try {
-        const response = await fetch(`${SERVER_BASE}/queue?roomId=${encodeURIComponent(roomId)}`)
+        const response = await fetch(`${SERVER_BASE}/queue/${roomId}`)
         if (!response.ok) return
         const data = await response.json()
         if (Array.isArray(data)) {
@@ -121,16 +121,36 @@ function App() {
     setStatusMessage('Bienvenido, conectando...')
   }
 
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     event.preventDefault()
 
     if (!roomId.trim() || !username.trim()) {
-      setStatusMessage('Completa código de sala y nombre de usuario.')
-      return
+        setStatusMessage('Completa código de sala y nombre de usuario.')
+        return
     }
 
-    saveSession()
-  }
+    try {
+        const response = await fetch(`${SERVER_BASE}/rooms/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: roomId, username })
+        })
+
+        if (!response.ok) throw new Error('No se pudo unir a la sala')
+
+        const data = await response.json()
+        
+        localStorage.setItem('jukebox_userId', data.userId)
+        localStorage.setItem('jukebox_roomDbId', data.roomId)
+        localStorage.setItem(STORAGE_KEYS.roomId, roomId)
+        localStorage.setItem(STORAGE_KEYS.username, username)
+        
+        setStage('dashboard')
+        setStatusMessage(`Bienvenido ${username}`)
+    } catch (error) {
+        setStatusMessage('No se pudo conectar. Verificá el código de sala.')
+    }
+}
 
   const handleSearch = async (event) => {
     event.preventDefault()
@@ -163,48 +183,51 @@ function App() {
     }
   }
 
-  const handleAddSong = async (song) => {
-    setStatusMessage('Agregando canción...')
+ const handleAddSong = async (song) => {
+  setStatusMessage('Agregando canción...')
+
+  try {
+    await fetch(`${SERVER_BASE}/queue/add`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        roomId: Number(roomId),
+        userId: 1,
+        ytId: song.ytId,
+        title: song.title,
+        artist: song.artist,
+        thumb: song.thumb
+      }),
+    })
+
+    setStatusMessage('Canción enviada. Espera la actualización en vivo.')
+
+  } catch (error) {
+    console.error(error)
+    setStatusMessage('No se pudo agregar la canción. Comprueba el backend.')
+  }
+}
+
+ const handleVote = async (queueItemId) => {
+    const userId = localStorage.getItem('jukebox_userId')
+    if (!userId) return
 
     try {
-      await fetch(`${SERVER_BASE}/queue/add`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ roomId, song }),
-      })
+        const response = await fetch(`${SERVER_BASE}/queue/vote/${queueItemId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: Number(userId) })
+        })
 
-      setStatusMessage('Canción enviada. Espera la actualización en vivo.')
+        if (response.ok) {
+            setStatusMessage('Voto registrado.')
+        }
     } catch (error) {
-      console.error(error)
-      setStatusMessage('No se pudo agregar la canción. Comprueba el backend.')
+        console.warn('Error al votar', error)
     }
-  }
-
-  const handleVote = async (songId) => {
-    if (votedSongs[songId]) return
-
-    const nextVotes = {
-      ...votedSongs,
-      [songId]: true,
-    }
-    setVotedSongs(nextVotes)
-    localStorage.setItem(STORAGE_KEYS.votedSongs, JSON.stringify(nextVotes))
-    setStatusMessage('Voto registrado. Espera la actualización en vivo.')
-
-    try {
-      await fetch(`${SERVER_BASE}/songs/vote`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ roomId, songId }),
-      })
-    } catch (error) {
-      console.warn('Error al enviar voto', error)
-    }
-  }
+}
 
   const nowPlaying = useMemo(() => queue[0] || null, [queue])
   const pendingSongs = useMemo(
