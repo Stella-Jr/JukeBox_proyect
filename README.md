@@ -5,7 +5,7 @@
 - **Backend/**: API en Spring Boot (Java) para lógica de negocio y búsqueda de canciones.
 - **realtime-service/**: Microservicio Node.js (Express + Socket.io) para comunicación en tiempo real entre backend y clientes.
 - **frontend-client/**: Web app para usuarios (React + Tailwind CSS). Permite buscar, agregar y votar canciones.
-- **host-player/**: Web app para el host (PC del gimnasio).
+- **Host (Reproductor)**: Se sirve desde `frontend-client` en la ruta `/host/<roomId>`.
 
 ## Instalación rápida (Windows)
 
@@ -30,7 +30,7 @@ Esto iniciará:
 - Backend en http://localhost:8080
 - Realtime Service en http://localhost:3000
 - Frontend Client en http://localhost:5173
-- Host Player en http://localhost:5174
+- Host (Reproductor) en http://localhost:5173/host/<roomId>
 
 Asegúrate de que las dependencias estén instaladas primero con `./setup-all.ps1`.
 
@@ -50,9 +50,9 @@ Asegúrate de que las dependencias estén instaladas primero con `./setup-all.ps
 - Se conecta automáticamente al realtime-service para recibir actualizaciones en vivo.
 - Usa Tailwind CSS para un diseño moderno y responsivo.
 
-### host-player (React)
+### Host (Reproductor)
 - Pensado para el PC del gimnasio que reproduce la música.
-- Puede compartir lógica con frontend-client.
+- Se abre en `frontend-client` usando `/host/<roomId>`.
 
 ## ¿Cómo inicio cada módulo?
 
@@ -78,9 +78,10 @@ cd frontend-client
 npm run dev
 ```
 
-### host-player
+### Host (Reproductor)
+
+Inicia `frontend-client` y abre:
 
 ```powershell
-cd host-player
-npm run dev
+http://localhost:5173/host/<roomId>
 ```

@@ -5,7 +5,7 @@ Write-Host "(Asegúrate de tener Java y Maven instalados)"
 
 if (Test-Path "Backend\pom.xml") {
     Push-Location Backend
-    mvnw.cmd clean install
+    .\mvnw.cmd clean install
     Pop-Location
 } else {
     Write-Host "No se encontró Backend/pom.xml. Salta Backend."
@@ -27,22 +27,6 @@ if (Test-Path "frontend-client\package.json") {
     Pop-Location
 } else {
     Write-Host "No se encontró frontend-client/package.json. Salta frontend-client."
-}
-
-Write-Host "\nInstalando dependencias del host-player (Node.js + React)..."
-if (Test-Path "host-player\package.json") {
-    Push-Location host-player
-    npm install
-    Pop-Location
-} else {
-    Write-Host "No se encontró host-player/package.json. Salta host-player."
-}
-
-Write-Host "\nInstalando dependencias del realtime-service (por si hay cambios nuevos)..."
-if (Test-Path "realtime-service\package.json") {
-    Push-Location realtime-service
-    npm install
-    Pop-Location
 }
 
 Write-Host "\n¡Listo! Todas las dependencias fueron instaladas."
