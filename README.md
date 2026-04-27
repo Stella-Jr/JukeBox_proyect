@@ -67,7 +67,6 @@ cd Backend
 
 ```powershell
 cd realtime-service
-$env:INTERNAL_API_KEY = "pon-tu-api-key"
 npm start
 ```
 
