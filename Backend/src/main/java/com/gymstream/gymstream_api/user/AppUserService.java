@@ -2,7 +2,9 @@ package com.gymstream.gymstream_api.user;
 
 import com.gymstream.gymstream_api.room.Room;
 import com.gymstream.gymstream_api.room.RoomService;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import java.util.UUID;
 
 @Service
@@ -48,5 +50,15 @@ public class AppUserService {
         user.setSessionToken(UUID.randomUUID().toString());
 
         return userRepository.save(user);
+    }
+
+    public AppUser getUserBySessionToken(String sessionToken) {
+        if (sessionToken == null || sessionToken.trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token de sesion requerido");
+        }
+
+        return userRepository.findBySessionToken(sessionToken.trim())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED, "Token de sesion invalido"));
     }
 }

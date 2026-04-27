@@ -13,7 +13,10 @@ type QueueItem = {
   thumbnail?: string
   votes?: number
   status?: string
+  score?: number
 }
+
+type QueueRefreshMessage = QueueItem[] | { queue?: QueueItem[] }
 
 async function fetchQueue(roomId: string): Promise<QueueItem[]> {
   const response = await fetch(`${SERVER_BASE}/queue/${encodeURIComponent(roomId)}`)
@@ -33,7 +36,7 @@ export function HostPage({ roomId }: { roomId: string }) {
 
   const nowPlaying = useMemo(() => queue[0] || null, [queue])
   const pendingSongs = useMemo(
-    () => queue.slice(1).sort((a, b) => (b.votes || 0) - (a.votes || 0)),
+    () => queue.slice(1).sort((a, b) => (b.score || 0) - (a.score || 0)),
     [queue],
   )
 
@@ -85,7 +88,7 @@ export function HostPage({ roomId }: { roomId: string }) {
       setStatusMessage('Host desconectado del realtime service')
     })
 
-    socket.on('refresh_queue', (message: any) => {
+    socket.on('refresh_queue', (message: QueueRefreshMessage) => {
       setStatusMessage('Cola actualizada automáticamente')
       if (Array.isArray(message)) {
         setQueue(message)

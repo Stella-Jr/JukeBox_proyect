@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react'
 import * as AppModule from '../App.jsx'
 import { HostPage } from '../views/host/HostPage'
 
@@ -11,7 +12,7 @@ function getHostRoomIdFromPathname(pathname: string): string | null {
 export default function Root() {
   const roomId = getHostRoomIdFromPathname(window.location.pathname)
   if (roomId) return <HostPage roomId={roomId} />
-  const App = (AppModule as any).default ?? AppModule
+  const App = (AppModule as { default: ComponentType }).default
   return <App />
 }
 

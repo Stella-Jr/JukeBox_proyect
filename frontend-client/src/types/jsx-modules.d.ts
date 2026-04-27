@@ -1,5 +1,7 @@
 declare module '*.jsx' {
-  const component: any
+  import type { ComponentType } from 'react'
+
+  const component: ComponentType
   export default component
 }
 

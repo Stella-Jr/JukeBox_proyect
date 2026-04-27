@@ -1,8 +1,10 @@
 package com.gymstream.gymstream_api.song;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.server.ResponseStatusException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URLEncoder;
@@ -23,6 +25,7 @@ public class SongService {
     private static final String YOUTUBE_VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos";
 
     public List<SongSearchResult> searchSongs(String query) {
+        validateApiKey();
 
         // Detectamos si el texto que llegó es un link de YouTube
         // Si es un link, extraemos el videoId y buscamos ese video específico
@@ -119,7 +122,11 @@ public class SongService {
             }
 
         } catch (Exception e) {
-            System.err.println("Error al buscar video por ID: " + e.getMessage());
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo consultar YouTube. Revisa YOUTUBE_API_KEY o la cuota de la API.",
+                    e
+            );
         }
 
         return results;
@@ -169,9 +176,22 @@ public class SongService {
         }
 
     } catch (Exception e) {
-        System.err.println("Error al buscar canciones: " + e.getMessage());
+        throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "No se pudo consultar YouTube. Revisa YOUTUBE_API_KEY o la cuota de la API.",
+                e
+        );
     }
 
     return results;
+    }
+
+    private void validateApiKey() {
+        if (apiKey == null || apiKey.isBlank() || "TU_API_KEY_REAL".equals(apiKey)) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "YOUTUBE_API_KEY no esta configurada correctamente"
+            );
+        }
     }
 }

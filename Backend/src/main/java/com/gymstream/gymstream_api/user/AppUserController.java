@@ -1,7 +1,9 @@
 package com.gymstream.gymstream_api.user;
 
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.Map;
 
 @RestController
@@ -15,16 +17,14 @@ public class AppUserController {
     }
 
     @PostMapping("/join")
-    public ResponseEntity<Map<String, Object>> joinRoom(@RequestBody Map<String, String> body) {
-        String code = body.get("code");
-        String username = body.get("username");
-
-        AppUser user = userService.joinRoom(code, username);
+    public ResponseEntity<Map<String, Object>> joinRoom(@Valid @RequestBody JoinRoomRequest request) {
+        AppUser user = userService.joinRoom(request.code(), request.username());
 
         return ResponseEntity.ok(Map.of(
                 "token", user.getSessionToken(),
                 "userId", user.getId(),
-                "roomId", user.getRoom().getId()
+                "roomId", user.getRoom().getId(),
+                "roomCode", user.getRoom().getCode()
         ));
     }
 }

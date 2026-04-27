@@ -2,16 +2,27 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
 
 const STORAGE_KEYS = {
-  roomId: 'jukebox_roomId',
+  roomCode: 'jukebox_roomCode',
+  roomDbId: 'jukebox_roomDbId',
   username: 'jukebox_username',
+  sessionToken: 'jukebox_sessionToken',
   votedSongs: 'jukebox_votedSongs',
 }
 
-const SERVER_BASE = "http://localhost:8080/api";
+const SERVER_BASE = 'http://localhost:8080/api'
 const SOCKET_URL = 'http://localhost:3000'
 
+function readStoredVotes() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.votedSongs) || '{}')
+  } catch {
+    return {}
+  }
+}
+
 function App() {
-  const [roomId, setRoomId] = useState('')
+  const [roomCode, setRoomCode] = useState('')
+  const [roomDbId, setRoomDbId] = useState('')
   const [username, setUsername] = useState('')
   const [stage, setStage] = useState('login')
   const [searchQuery, setSearchQuery] = useState('')
@@ -24,44 +35,32 @@ function App() {
   const socketRef = useRef(null)
 
   useEffect(() => {
-    const storedRoom = localStorage.getItem(STORAGE_KEYS.roomId)
+    const storedRoomCode = localStorage.getItem(STORAGE_KEYS.roomCode)
+    const storedRoomDbId = localStorage.getItem(STORAGE_KEYS.roomDbId)
     const storedUser = localStorage.getItem(STORAGE_KEYS.username)
-    const storedVotes = localStorage.getItem(STORAGE_KEYS.votedSongs)
+    const storedToken = localStorage.getItem(STORAGE_KEYS.sessionToken)
 
-    if (storedRoom && storedUser) {
-      setRoomId(storedRoom)
+    setVotedSongs(readStoredVotes())
+
+    if (storedRoomCode && storedRoomDbId && storedUser && storedToken) {
+      setRoomCode(storedRoomCode)
+      setRoomDbId(storedRoomDbId)
       setUsername(storedUser)
       setStage('dashboard')
-      setStatusMessage(`Sesión cargada para ${storedUser}`)
-    }
-
-    if (storedVotes) {
-      try {
-        setVotedSongs(JSON.parse(storedVotes))
-      } catch (error) {
-        console.warn('No se pudo leer votos guardados', error)
-      }
+      setStatusMessage(`Sesion cargada para ${storedUser}`)
     }
   }, [])
 
   useEffect(() => {
-    if (stage !== 'dashboard') return
-    if (!roomId || !username) return
-    if (socketRef.current) return
+    if (stage !== 'dashboard' || !roomDbId || !username || socketRef.current) return
 
-    const socket = io(SOCKET_URL, {
-      transports: ['websocket'],
-    })
-
+    const socket = io(SOCKET_URL, { transports: ['websocket'] })
     socketRef.current = socket
 
     socket.on('connect', () => {
       setConnected(true)
       setStatusMessage('Conectado al realtime service')
-      socket.emit('join_room', {
-        roomId,
-        role: 'guest',
-      })
+      socket.emit('join_room', { roomId: roomDbId, role: 'guest' })
     })
 
     socket.on('disconnect', () => {
@@ -70,14 +69,10 @@ function App() {
     })
 
     socket.on('refresh_queue', (message) => {
-      setStatusMessage('Cola actualizada automáticamente')
-
+      setStatusMessage('Cola actualizada automaticamente')
       if (Array.isArray(message)) {
         setQueue(message)
-        return
-      }
-
-      if (message?.queue && Array.isArray(message.queue)) {
+      } else if (Array.isArray(message?.queue)) {
         setQueue(message.queue)
       }
     })
@@ -90,69 +85,62 @@ function App() {
       socket.disconnect()
       socketRef.current = null
     }
-  }, [stage, roomId, username])
+  }, [stage, roomDbId, username])
 
   useEffect(() => {
-    if (stage !== 'dashboard') return
-    if (!roomId) return
-
-    const fetchQueue = async () => {
-      try {
-        const response = await fetch(`${SERVER_BASE}/queue/${roomId}`)
-        if (!response.ok) return
-        const data = await response.json()
-        if (Array.isArray(data)) {
-          setQueue(data)
-        } else if (Array.isArray(data?.queue)) {
-          setQueue(data.queue)
-        }
-      } catch (error) {
-        console.warn('No se pudo cargar la cola inicial', error)
-      }
-    }
+    if (stage !== 'dashboard' || !roomDbId) return
 
     fetchQueue()
-  }, [stage, roomId])
+  }, [stage, roomDbId])
 
-  const saveSession = () => {
-    localStorage.setItem(STORAGE_KEYS.roomId, roomId)
-    localStorage.setItem(STORAGE_KEYS.username, username)
-    setStage('dashboard')
-    setStatusMessage('Bienvenido, conectando...')
+  async function fetchQueue() {
+    try {
+      const response = await fetch(`${SERVER_BASE}/queue/${roomDbId}`)
+      if (!response.ok) return
+      const data = await response.json()
+      setQueue(Array.isArray(data) ? data : data?.queue || [])
+    } catch (error) {
+      console.warn('No se pudo cargar la cola', error)
+    }
   }
 
-  const handleLogin = async (event) => {
+  async function handleLogin(event) {
     event.preventDefault()
 
-    if (!roomId.trim() || !username.trim()) {
-        setStatusMessage('Completa código de sala y nombre de usuario.')
-        return
+    if (!roomCode.trim() || !username.trim()) {
+      setStatusMessage('Completa codigo de sala y nombre de usuario.')
+      return
     }
 
     try {
-        const response = await fetch(`${SERVER_BASE}/rooms/join`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: roomId, username })
-        })
+      const response = await fetch(`${SERVER_BASE}/rooms/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: roomCode.trim(), username: username.trim() }),
+      })
 
-        if (!response.ok) throw new Error('No se pudo unir a la sala')
+      if (!response.ok) throw new Error('No se pudo unir a la sala')
 
-        const data = await response.json()
-        
-        localStorage.setItem('jukebox_userId', data.userId)
-        localStorage.setItem('jukebox_roomDbId', data.roomId)
-        localStorage.setItem(STORAGE_KEYS.roomId, roomId)
-        localStorage.setItem(STORAGE_KEYS.username, username)
-        
-        setStage('dashboard')
-        setStatusMessage(`Bienvenido ${username}`)
-    } catch (error) {
-        setStatusMessage('No se pudo conectar. Verificá el código de sala.')
+      const data = await response.json()
+      const nextRoomCode = data.roomCode || roomCode.trim()
+      const nextRoomDbId = String(data.roomId)
+
+      localStorage.setItem(STORAGE_KEYS.sessionToken, data.token)
+      localStorage.setItem(STORAGE_KEYS.roomDbId, nextRoomDbId)
+      localStorage.setItem(STORAGE_KEYS.roomCode, nextRoomCode)
+      localStorage.setItem(STORAGE_KEYS.username, username.trim())
+
+      setRoomCode(nextRoomCode)
+      setRoomDbId(nextRoomDbId)
+      setUsername(username.trim())
+      setStage('dashboard')
+      setStatusMessage(`Bienvenido ${username.trim()}`)
+    } catch {
+      setStatusMessage('No se pudo conectar. Verifica el codigo de sala.')
     }
-}
+  }
 
-  const handleSearch = async (event) => {
+  async function handleSearch(event) {
     event.preventDefault()
     const query = searchQuery.trim()
     if (!query) return
@@ -162,17 +150,9 @@ function App() {
 
     try {
       const response = await fetch(`${SERVER_BASE}/songs/search?q=${encodeURIComponent(query)}`)
-      if (!response.ok) {
-        throw new Error('Error en la búsqueda')
-      }
-
+      if (!response.ok) throw new Error('Error en la busqueda')
       const data = await response.json()
-      const results = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.results)
-        ? data.results
-        : []
-
+      const results = Array.isArray(data) ? data : data?.results || []
       setSearchResults(results)
       setStatusMessage(`${results.length} resultados encontrados`)
     } catch (error) {
@@ -183,55 +163,86 @@ function App() {
     }
   }
 
- const handleAddSong = async (song) => {
-  setStatusMessage('Agregando canción...')
+  async function handleAddSong(song) {
+    const token = localStorage.getItem(STORAGE_KEYS.sessionToken)
+    if (!token || !roomDbId) {
+      setStatusMessage('Sesion incompleta. Vuelve a entrar a la sala.')
+      return
+    }
 
-  try {
-    await fetch(`${SERVER_BASE}/queue/add`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        roomId: Number(roomId),
-        userId: 1,
-        ytId: song.ytId,
-        title: song.title,
-        artist: song.artist,
-        thumb: song.thumb
-      }),
-    })
-
-    setStatusMessage('Canción enviada. Espera la actualización en vivo.')
-
-  } catch (error) {
-    console.error(error)
-    setStatusMessage('No se pudo agregar la canción. Comprueba el backend.')
-  }
-}
-
- const handleVote = async (queueItemId) => {
-    const userId = localStorage.getItem('jukebox_userId')
-    if (!userId) return
+    setStatusMessage('Agregando cancion...')
 
     try {
-        const response = await fetch(`${SERVER_BASE}/queue/vote/${queueItemId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: Number(userId) })
-        })
+      const response = await fetch(`${SERVER_BASE}/queue/add`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-Token': token,
+        },
+        body: JSON.stringify({
+          roomId: Number(roomDbId),
+          ytId: song.ytId,
+          title: song.title,
+          artist: song.artist,
+          thumb: song.thumbnail,
+        }),
+      })
 
-        if (response.ok) {
-            setStatusMessage('Voto registrado.')
-        }
+      if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.message || 'No se pudo agregar la cancion')
+      }
+
+      await fetchQueue()
+      setStatusMessage('Cancion enviada a la cola.')
     } catch (error) {
-        console.warn('Error al votar', error)
+      console.error(error)
+      setStatusMessage(error.message || 'No se pudo agregar la cancion.')
     }
-}
+  }
+
+  async function handleVote(queueItemId) {
+    const token = localStorage.getItem(STORAGE_KEYS.sessionToken)
+    if (!token) return
+
+    try {
+      const response = await fetch(`${SERVER_BASE}/queue/vote/${queueItemId}`, {
+        method: 'POST',
+        headers: { 'X-Session-Token': token },
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        setStatusMessage(error?.message || 'No se pudo registrar el voto.')
+        return
+      }
+
+      const nextVotes = { ...votedSongs, [queueItemId]: true }
+      setVotedSongs(nextVotes)
+      localStorage.setItem(STORAGE_KEYS.votedSongs, JSON.stringify(nextVotes))
+      await fetchQueue()
+      setStatusMessage('Voto registrado.')
+    } catch (error) {
+      console.warn('Error al votar', error)
+      setStatusMessage('No se pudo registrar el voto.')
+    }
+  }
+
+  function clearSession() {
+    Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key))
+    setStage('login')
+    setRoomCode('')
+    setRoomDbId('')
+    setUsername('')
+    setQueue([])
+    setVotedSongs({})
+    socketRef.current?.disconnect()
+    socketRef.current = null
+  }
 
   const nowPlaying = useMemo(() => queue[0] || null, [queue])
   const pendingSongs = useMemo(
-    () => queue.slice(1).sort((a, b) => (b.votes || 0) - (a.votes || 0)),
+    () => queue.slice(1).sort((a, b) => (b.score || 0) - (a.score || 0)),
     [queue],
   )
 
@@ -244,7 +255,7 @@ function App() {
               <p className="text-sm uppercase tracking-[0.32em] text-emerald-400/80">Jukebox User MVP</p>
               <h1 className="mt-2 text-3xl font-semibold text-white">Sala colaborativa</h1>
               <p className="mt-1 max-w-2xl text-sm text-slate-400">
-                Busca canciones, agrégalas a la cola y vota para subirlas.
+                Busca canciones, agregalas a la cola y vota para subirlas.
               </p>
             </div>
             <div className="grid gap-2">
@@ -252,36 +263,30 @@ function App() {
                 Socket: {connected ? 'Conectado' : 'Desconectado'}
               </span>
               <span className="rounded-full bg-slate-800/90 px-3 py-1 text-sm text-slate-300">
-                {stage === 'dashboard' ? `Sala: ${roomId}` : 'Ingresa a una sala'}
+                {stage === 'dashboard' ? `Sala: ${roomCode}` : 'Ingresa a una sala'}
               </span>
             </div>
           </div>
-          {statusMessage && (
-            <p className="mt-4 text-sm text-slate-300">{statusMessage}</p>
-          )}
+          {statusMessage && <p className="mt-4 text-sm text-slate-300">{statusMessage}</p>}
         </header>
 
         {stage === 'login' ? (
           <main className="space-y-6">
             <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-cyan-500/10">
-              <h2 className="text-xl font-semibold text-white">Acceso rápido</h2>
-              <p className="mt-2 text-sm text-slate-400">
-                Ingresa tu Código de Sala y tu Nombre de Usuario para comenzar.
-              </p>
-
+              <h2 className="text-xl font-semibold text-white">Acceso rapido</h2>
               <form className="mt-6 space-y-4" onSubmit={handleLogin}>
                 <label className="block text-sm text-slate-300">
-                  Código de Sala
+                  Codigo de sala
                   <input
-                    value={roomId}
-                    onChange={(event) => setRoomId(event.target.value)}
+                    value={roomCode}
+                    onChange={(event) => setRoomCode(event.target.value)}
                     className="mt-2 w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-emerald-400/80 focus:ring-2 focus:ring-emerald-500/20"
-                    placeholder="Ej. gym-room-01"
+                    placeholder="Ej. A3F9K2"
                   />
                 </label>
 
                 <label className="block text-sm text-slate-300">
-                  Nombre de Usuario
+                  Nombre de usuario
                   <input
                     value={username}
                     onChange={(event) => setUsername(event.target.value)}
@@ -298,15 +303,6 @@ function App() {
                 </button>
               </form>
             </section>
-
-            <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-cyan-500/10">
-              <h2 className="text-lg font-semibold text-white">Guía rápida</h2>
-              <ul className="mt-4 space-y-3 text-sm text-slate-400">
-                <li>1. Escribe el código de sala compartido por el Host.</li>
-                <li>2. Usa el buscador para encontrar canciones de YouTube.</li>
-                <li>3. Agrega canciones a la cola y vota por tus favoritas.</li>
-              </ul>
-            </section>
           </main>
         ) : (
           <main className="space-y-6">
@@ -314,21 +310,12 @@ function App() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm uppercase tracking-[0.32em] text-slate-400">Tu sala</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">{roomId}</h2>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">{roomCode}</h2>
                   <p className="mt-1 text-sm text-slate-500">Usuario: {username}</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    localStorage.removeItem(STORAGE_KEYS.roomId)
-                    localStorage.removeItem(STORAGE_KEYS.username)
-                    setStage('login')
-                    setRoomId('')
-                    setUsername('')
-                    setQueue([])
-                    socketRef.current?.disconnect()
-                    socketRef.current = null
-                  }}
+                  onClick={clearSession}
                   className="rounded-3xl border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
                 >
                   Cambiar sala
@@ -341,8 +328,8 @@ function App() {
                 <article className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-cyan-500/10">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm text-emerald-400">Buscar canción</p>
-                      <h2 className="mt-2 text-xl font-semibold text-white">Encuentra la próxima pista</h2>
+                      <p className="text-sm text-emerald-400">Buscar cancion</p>
+                      <h2 className="mt-2 text-xl font-semibold text-white">Encuentra la proxima pista</h2>
                     </div>
                     <span className="rounded-full bg-slate-800 px-3 py-2 text-sm text-slate-300">
                       {connected ? 'Realtime activo' : 'Esperando realtime'}
@@ -354,7 +341,7 @@ function App() {
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
                       className="min-w-0 flex-1 rounded-full border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
-                      placeholder="Buscar canción..."
+                      placeholder="Buscar cancion..."
                     />
                     <button
                       type="submit"
@@ -366,34 +353,31 @@ function App() {
 
                   {searchResults.length > 0 && (
                     <div className="mt-6 space-y-4">
-                      {searchResults.map((song) => {
-                        const songId = song.id || song.videoId || song.title
-                        return (
-                          <div
-                            key={songId}
-                            className="flex flex-col gap-3 rounded-3xl border border-slate-800 bg-slate-950 p-4 sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <div className="flex items-center gap-3">
-                              <img
-                                src={song.thumbnail || song.image || 'https://via.placeholder.com/100x60?text=Cover'}
-                                alt={song.title}
-                                className="h-16 w-28 rounded-2xl object-cover"
-                              />
-                              <div>
-                                <p className="font-semibold text-slate-100">{song.title}</p>
-                                <p className="text-sm text-slate-400">{song.artist || song.channel || 'Artista desconocido'}</p>
-                              </div>
+                      {searchResults.map((song) => (
+                        <div
+                          key={song.ytId || song.title}
+                          className="flex flex-col gap-3 rounded-3xl border border-slate-800 bg-slate-950 p-4 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={song.thumbnail || 'https://via.placeholder.com/100x60?text=Cover'}
+                              alt={song.title}
+                              className="h-16 w-28 rounded-2xl object-cover"
+                            />
+                            <div>
+                              <p className="font-semibold text-slate-100">{song.title}</p>
+                              <p className="text-sm text-slate-400">{song.artist || 'Artista desconocido'}</p>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleAddSong(song)}
-                              className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
-                            >
-                              Agregar
-                            </button>
                           </div>
-                        )
-                      })}
+                          <button
+                            type="button"
+                            onClick={() => handleAddSong(song)}
+                            className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+                          >
+                            Agregar
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </article>
@@ -401,8 +385,8 @@ function App() {
                 <article className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-cyan-500/10">
                   <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm uppercase tracking-[0.32em] text-emerald-400">Cola de reproducción</p>
-                      <h2 className="mt-2 text-xl font-semibold text-white">Sonando Ahora</h2>
+                      <p className="text-sm uppercase tracking-[0.32em] text-emerald-400">Cola de reproduccion</p>
+                      <h2 className="mt-2 text-xl font-semibold text-white">Sonando ahora</h2>
                     </div>
                     <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">
                       {queue.length} canciones
@@ -414,14 +398,14 @@ function App() {
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-4">
                           <img
-                            src={nowPlaying.thumbnail || nowPlaying.image || 'https://via.placeholder.com/110x70?text=Now+Playing'}
+                            src={nowPlaying.thumbnail || 'https://via.placeholder.com/110x70?text=Now+Playing'}
                             alt={nowPlaying.title}
                             className="h-24 w-36 rounded-3xl object-cover"
                           />
                           <div>
                             <p className="text-sm uppercase tracking-[0.24em] text-emerald-300">Ahora suena</p>
                             <h3 className="mt-2 text-xl font-semibold text-white">{nowPlaying.title}</h3>
-                            <p className="mt-1 text-sm text-slate-400">{nowPlaying.artist || nowPlaying.channel || 'Artista desconocido'}</p>
+                            <p className="mt-1 text-sm text-slate-400">{nowPlaying.artist || 'Artista desconocido'}</p>
                           </div>
                         </div>
                         <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-200">
@@ -431,7 +415,7 @@ function App() {
                     </div>
                   ) : (
                     <div className="rounded-[2rem] border border-dashed border-slate-700 bg-slate-950 p-8 text-center text-slate-400">
-                      No hay ninguna canción sonando ahora. Busca y agrega una pista.
+                      No hay ninguna cancion sonando ahora. Busca y agrega una pista.
                     </div>
                   )}
                 </article>
@@ -440,23 +424,20 @@ function App() {
               <aside className="space-y-6">
                 <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-cyan-500/10">
                   <h2 className="text-xl font-semibold text-white">Pendientes</h2>
-                  <p className="mt-2 text-sm text-slate-400">Las canciones suben de posición según los votos.</p>
+                  <p className="mt-2 text-sm text-slate-400">Las canciones suben segun votos y tiempo de espera.</p>
 
                   <div className="mt-6 space-y-4">
                     {pendingSongs.length > 0 ? (
                       pendingSongs.map((song, index) => {
-                        const songId = song.id || song.videoId || `${song.title}-${index}`
+                        const songId = song.id || `${song.title}-${index}`
                         const voted = Boolean(votedSongs[songId])
 
                         return (
-                          <div
-                            key={songId}
-                            className="rounded-3xl border border-slate-800 bg-slate-950 px-4 py-4"
-                          >
+                          <div key={songId} className="rounded-3xl border border-slate-800 bg-slate-950 px-4 py-4">
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className="font-semibold text-slate-100">{song.title}</p>
-                                <p className="mt-1 text-sm text-slate-400">{song.artist || song.channel || 'Artista desconocido'}</p>
+                                <p className="mt-1 text-sm text-slate-400">{song.artist || 'Artista desconocido'}</p>
                               </div>
                               <div className="text-right">
                                 <p className="text-sm text-slate-400">Votos</p>
@@ -480,20 +461,10 @@ function App() {
                       })
                     ) : (
                       <div className="rounded-3xl border border-dashed border-slate-700 bg-slate-950 p-6 text-center text-slate-500">
-                        No hay canciones pendientes. Agrega una desde el buscador.
+                        No hay canciones pendientes.
                       </div>
                     )}
                   </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-cyan-500/10">
-                  <h3 className="text-lg font-semibold text-white">Atajos</h3>
-                  <ul className="mt-4 space-y-3 text-sm text-slate-400">
-                    <li>Busca por artista, título o fragmento de YouTube.</li>
-                    <li>Presiona Agregar para enviar la canción al backend.</li>
-                    <li>Vota una sola vez por canción; el botón cambia de estado.</li>
-                    <li>La lista se actualiza automáticamente con `refresh_queue`.</li>
-                  </ul>
                 </div>
               </aside>
             </section>

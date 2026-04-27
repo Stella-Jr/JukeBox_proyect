@@ -2,9 +2,36 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 declare global {
   interface Window {
-    YT?: any
+    YT?: YouTubeNamespace
     onYouTubeIframeAPIReady?: () => void
   }
+}
+
+type YouTubePlayer = {
+  destroy?: () => void
+  mute?: () => void
+  playVideo?: () => void
+  loadVideoById?: (videoId: string) => void
+}
+
+type YouTubePlayerEvent = {
+  data?: number
+}
+
+type YouTubePlayerOptions = {
+  height: string
+  width: string
+  videoId?: string
+  playerVars: Record<string, number>
+  events: {
+    onReady: () => void
+    onStateChange: (event: YouTubePlayerEvent) => void
+    onError: () => void
+  }
+}
+
+type YouTubeNamespace = {
+  Player: new (element: HTMLElement, options: YouTubePlayerOptions) => YouTubePlayer
 }
 
 type UseYouTubeIFramePlayerArgs = {
@@ -42,7 +69,7 @@ function loadYouTubeIFrameApi(): Promise<void> {
 
 export function useYouTubeIFramePlayer({ videoId, autoplay = true, onEnded }: UseYouTubeIFramePlayerArgs) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const playerRef = useRef<any>(null)
+  const playerRef = useRef<YouTubePlayer | null>(null)
   const [status, setStatus] = useState<PlayerStatus>('idle')
 
   const destroy = useCallback(() => {
@@ -65,6 +92,7 @@ export function useYouTubeIFramePlayer({ videoId, autoplay = true, onEnded }: Us
       .then(() => {
         if (cancelled) return
         if (!containerRef.current) return
+        if (!window.YT) return
 
         destroy()
 
@@ -92,7 +120,7 @@ export function useYouTubeIFramePlayer({ videoId, autoplay = true, onEnded }: Us
                 }
               }
             },
-            onStateChange: (event: any) => {
+            onStateChange: (event: YouTubePlayerEvent) => {
               if (event?.data === 0) onEnded?.()
             },
             onError: () => {

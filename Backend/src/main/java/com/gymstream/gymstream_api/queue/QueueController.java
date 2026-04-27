@@ -1,8 +1,13 @@
 package com.gymstream.gymstream_api.queue;
 
+import com.gymstream.gymstream_api.realtime.RealtimeNotifier;
+import com.gymstream.gymstream_api.user.AppUser;
+import com.gymstream.gymstream_api.user.AppUserService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 import java.util.Map;
 
@@ -11,43 +16,45 @@ import java.util.Map;
 public class QueueController {
 
     private final QueueService queueService;
+    private final AppUserService userService;
+    private final RealtimeNotifier realtimeNotifier;
 
-    public QueueController(QueueService queueService) {
+    public QueueController(
+            QueueService queueService,
+            AppUserService userService,
+            RealtimeNotifier realtimeNotifier) {
         this.queueService = queueService;
+        this.userService = userService;
+        this.realtimeNotifier = realtimeNotifier;
     }
 
-    // POST /api/queue/add
-    // Recibe: { "ytId": "...", "title": "...", "artist": "...", "roomId": 1, "userId": 1 }
-    // Devuelve: 201 Created con el QueueItem completo
     @PostMapping("/add")
-    public ResponseEntity<QueueItem> addToQueue(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<QueueItemDTO> addToQueue(
+            @RequestHeader("X-Session-Token") String sessionToken,
+            @Valid @RequestBody AddQueueItemRequest request) {
 
-    String ytId = (String) body.get("ytId");
-    String title = (String) body.get("title");
-    String artist = (String) body.get("artist");
-    String thumb = (String) body.get("thumb"); // ← nuevo
+        AppUser user = userService.getUserBySessionToken(sessionToken);
+        QueueItem item = queueService.addToQueue(
+                request.ytId(),
+                request.title(),
+                request.artist(),
+                request.thumb(),
+                request.roomId(),
+                user
+        );
+        notifyQueue(request.roomId());
 
-    Long roomId = ((Number) body.get("roomId")).longValue();
-    Long userId = ((Number) body.get("userId")).longValue();
+        return ResponseEntity.status(HttpStatus.CREATED).body(new QueueItemDTO(item, item.getVotesCount()));
+    }
 
-    QueueItem item = queueService.addToQueue(ytId, title, artist, thumb, roomId, userId);
-
-    return ResponseEntity.status(HttpStatus.CREATED).body(item);
-}
-
-    // POST /api/queue/vote/{queueId}
-    // Registra un voto en una canción de la cola
-    // @PathVariable captura el {queueId} de la URL
-    // Recibe: { "userId": 1 }
-    // Devuelve: 200 OK con el QueueItem actualizado y su nuevo score
     @PostMapping("/vote/{queueId}")
     public ResponseEntity<Map<String, Object>> vote(
             @PathVariable Long queueId,
-            @RequestBody Map<String, Object> body) {
+            @RequestHeader("X-Session-Token") String sessionToken) {
 
-        Long userId = ((Number) body.get("userId")).longValue();
-
-        QueueItem item = queueService.vote(queueId, userId);
+        AppUser user = userService.getUserBySessionToken(sessionToken);
+        QueueItem item = queueService.vote(queueId, user);
+        notifyQueue(item.getRoom().getId());
 
         return ResponseEntity.ok(Map.of(
                 "newScore", item.getVotesCount(),
@@ -55,22 +62,20 @@ public class QueueController {
         ));
     }
 
-    // GET /api/queue/{roomId}
-    // Devuelve la cola ordenada por score (votos + tiempo de espera)
-    // La canción PLAYING siempre va primero
     @GetMapping("/{roomId}")
     public ResponseEntity<List<QueueItemDTO>> getQueue(@PathVariable Long roomId) {
         List<QueueItemDTO> queue = queueService.getQueue(roomId);
         return ResponseEntity.ok(queue);
-    }    
+    }
 
-    // PATCH /api/queue/next-track/{roomId}
-    // Lo llama la PC Host cuando termina una canción
-    // Marca la actual como PLAYED, busca la siguiente y la marca como PLAYING
     @PatchMapping("/next-track/{roomId}")
     public ResponseEntity<QueueItemDTO> nextTrack(@PathVariable Long roomId) {
         QueueItemDTO next = queueService.nextTrack(roomId);
-
+        notifyQueue(roomId);
         return ResponseEntity.ok(next);
+    }
+
+    private void notifyQueue(Long roomId) {
+        realtimeNotifier.notifyQueueRefreshed(roomId, queueService.getQueue(roomId));
     }
 }

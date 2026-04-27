@@ -1,6 +1,7 @@
 package com.gymstream.gymstream_api.room;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 @Service
@@ -12,6 +13,7 @@ public class RoomService {
         this.roomRepository = roomRepository;
     }
 
+    @Transactional
     public Room createRoom(String name) {
         // Validar que el nombre no sea nulo o vacío
         if (name == null || name.trim().isEmpty()) {
@@ -25,7 +27,7 @@ public class RoomService {
         
         Room room = new Room();
         room.setName(name.trim());
-        room.setCode(generateCode()); 
+        room.setCode(generateUniqueCode()); 
         return roomRepository.save(room);
     }
 
@@ -42,6 +44,14 @@ public class RoomService {
     // Generar código único de 6 caracteres alfanuméricos (uppercase)
     // Usado para que los usuarios puedan unirse fácilmente a una sala
     // Ejemplo: "A3F9K2"
+    private String generateUniqueCode() {
+        String code;
+        do {
+            code = generateCode();
+        } while (roomRepository.findByCode(code).isPresent());
+        return code;
+    }
+
     private String generateCode() {
         return UUID.randomUUID()
                 .toString()
