@@ -387,9 +387,9 @@ function App() {
                         >
                           <div className="flex items-center gap-3">
                             <img
-                              src={song.thumbnail || 'https://via.placeholder.com/100x60?text=Cover'}
-                              alt={song.title}
-                              className="h-16 w-28 rounded-2xl object-cover"
+                            src={song.thumb || `https://img.youtube.com/vi/${song.ytId}/hqdefault.jpg`}
+                            alt={song.title}
+                            className="h-16 w-28 rounded-2xl object-cover"
                             />
                             <div>
                               <p className="font-semibold text-slate-100">{song.title}</p>
