@@ -12,6 +12,26 @@ const STORAGE_KEYS = {
 const SERVER_BASE = 'http://localhost:8080/api'
 const SOCKET_URL = 'http://localhost:3000'
 
+function normalizeQueueItem(raw) {
+  return {
+    ...raw,
+    id: raw.id,
+    songTitle: raw.songTitle ?? raw.title ?? 'Sin titulo',
+    songArtist: raw.songArtist ?? raw.artist ?? 'Artista desconocido',
+    songYtId: raw.songYtId ?? raw.ytId ?? '',
+    songThumb: raw.songThumb ?? raw.thumbnail ?? '',
+    votesCount: raw.votesCount ?? raw.votes ?? 0,
+    score: raw.score ?? 0,
+    status: raw.status,
+  }
+}
+
+function thumbUrl(item) {
+  if (item.songThumb) return item.songThumb
+  if (item.songYtId) return `https://img.youtube.com/vi/${item.songYtId}/hqdefault.jpg`
+  return 'https://via.placeholder.com/100x60?text=Cover'
+}
+
 function readStoredVotes() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.votedSongs) || '{}')
@@ -70,10 +90,9 @@ function App() {
 
     socket.on('refresh_queue', (message) => {
       setStatusMessage('Cola actualizada automaticamente')
-      if (Array.isArray(message)) {
-        setQueue(message)
-      } else if (Array.isArray(message?.queue)) {
-        setQueue(message.queue)
+      const raw = Array.isArray(message) ? message : message?.queue
+      if (Array.isArray(raw)) {
+        setQueue(raw.map(normalizeQueueItem))
       }
     })
 
@@ -98,9 +117,10 @@ function App() {
       const response = await fetch(`${SERVER_BASE}/queue/${roomDbId}`)
       if (!response.ok) return
       const data = await response.json()
-      setQueue(Array.isArray(data) ? data : data?.queue || [])
-    } catch (error) {
-      console.warn('No se pudo cargar la cola', error)
+      const list = Array.isArray(data) ? data : data?.queue || []
+      setQueue(list.map(normalizeQueueItem))
+    } catch {
+      setStatusMessage('No se pudo cargar la cola.')
     }
   }
 
@@ -155,8 +175,7 @@ function App() {
       const results = Array.isArray(data) ? data : data?.results || []
       setSearchResults(results)
       setStatusMessage(`${results.length} resultados encontrados`)
-    } catch (error) {
-      console.error(error)
+    } catch {
       setStatusMessage('No se pudo buscar canciones. Reintenta.')
     } finally {
       setLoadingSearch(false)
@@ -196,35 +215,40 @@ function App() {
       await fetchQueue()
       setStatusMessage('Cancion enviada a la cola.')
     } catch (error) {
-      console.error(error)
       setStatusMessage(error.message || 'No se pudo agregar la cancion.')
     }
   }
 
-  async function handleVote(queueItemId) {
+  async function handleVoteToggle(queueItemId, alreadyVoted) {
     const token = localStorage.getItem(STORAGE_KEYS.sessionToken)
     if (!token) return
 
+    const idKey = String(queueItemId)
+
     try {
-      const response = await fetch(`${SERVER_BASE}/queue/vote/${queueItemId}`, {
-        method: 'POST',
+      const response = await fetch(`${SERVER_BASE}/votes/${queueItemId}`, {
+        method: alreadyVoted ? 'DELETE' : 'POST',
         headers: { 'X-Session-Token': token },
       })
 
       if (!response.ok) {
         const error = await response.json().catch(() => null)
-        setStatusMessage(error?.message || 'No se pudo registrar el voto.')
+        setStatusMessage(error?.message || 'No se pudo actualizar el voto.')
         return
       }
 
-      const nextVotes = { ...votedSongs, [queueItemId]: true }
+      const nextVotes = { ...votedSongs }
+      if (alreadyVoted) {
+        delete nextVotes[idKey]
+      } else {
+        nextVotes[idKey] = true
+      }
       setVotedSongs(nextVotes)
       localStorage.setItem(STORAGE_KEYS.votedSongs, JSON.stringify(nextVotes))
       await fetchQueue()
-      setStatusMessage('Voto registrado.')
-    } catch (error) {
-      console.warn('Error al votar', error)
-      setStatusMessage('No se pudo registrar el voto.')
+      setStatusMessage(alreadyVoted ? 'Voto quitado.' : 'Voto registrado.')
+    } catch {
+      setStatusMessage('No se pudo actualizar el voto.')
     }
   }
 
@@ -240,9 +264,12 @@ function App() {
     socketRef.current = null
   }
 
-  const nowPlaying = useMemo(() => queue[0] || null, [queue])
+  const nowPlaying = useMemo(() => queue.find((s) => s.status === 'PLAYING') || null, [queue])
   const pendingSongs = useMemo(
-    () => queue.slice(1).sort((a, b) => (b.score || 0) - (a.score || 0)),
+    () =>
+      queue
+        .filter((s) => s.status === 'PENDING')
+        .sort((a, b) => (b.score || 0) - (a.score || 0)),
     [queue],
   )
 
@@ -398,18 +425,18 @@ function App() {
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-4">
                           <img
-                            src={nowPlaying.thumbnail || 'https://via.placeholder.com/110x70?text=Now+Playing'}
-                            alt={nowPlaying.title}
+                            src={thumbUrl(nowPlaying)}
+                            alt=""
                             className="h-24 w-36 rounded-3xl object-cover"
                           />
                           <div>
                             <p className="text-sm uppercase tracking-[0.24em] text-emerald-300">Ahora suena</p>
-                            <h3 className="mt-2 text-xl font-semibold text-white">{nowPlaying.title}</h3>
-                            <p className="mt-1 text-sm text-slate-400">{nowPlaying.artist || 'Artista desconocido'}</p>
+                            <h3 className="mt-2 text-xl font-semibold text-white">{nowPlaying.songTitle}</h3>
+                            <p className="mt-1 text-sm text-slate-400">{nowPlaying.songArtist}</p>
                           </div>
                         </div>
                         <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-200">
-                          {nowPlaying.votes ?? 0} votos
+                          {nowPlaying.votesCount ?? 0} votos
                         </div>
                       </div>
                     </div>
@@ -429,33 +456,42 @@ function App() {
                   <div className="mt-6 space-y-4">
                     {pendingSongs.length > 0 ? (
                       pendingSongs.map((song, index) => {
-                        const songId = song.id || `${song.title}-${index}`
-                        const voted = Boolean(votedSongs[songId])
+                        const songId = song.id
+                        const key = songId ?? `${song.songYtId}-${index}`
+                        const voted = songId != null && Boolean(votedSongs[String(songId)])
 
                         return (
-                          <div key={songId} className="rounded-3xl border border-slate-800 bg-slate-950 px-4 py-4">
+                          <div key={key} className="rounded-3xl border border-slate-800 bg-slate-950 px-4 py-4">
                             <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="font-semibold text-slate-100">{song.title}</p>
-                                <p className="mt-1 text-sm text-slate-400">{song.artist || 'Artista desconocido'}</p>
+                              <div className="flex min-w-0 flex-1 items-start gap-3">
+                                <img
+                                  src={thumbUrl(song)}
+                                  alt=""
+                                  className="h-14 w-24 shrink-0 rounded-2xl object-cover"
+                                />
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-slate-100">{song.songTitle}</p>
+                                  <p className="mt-1 text-sm text-slate-400">{song.songArtist}</p>
+                                </div>
                               </div>
                               <div className="text-right">
                                 <p className="text-sm text-slate-400">Votos</p>
-                                <p className="text-lg font-semibold text-emerald-300">{song.votes ?? 0}</p>
+                                <p className="text-lg font-semibold text-emerald-300">{song.votesCount ?? 0}</p>
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleVote(songId)}
-                              disabled={voted}
-                              className={`mt-4 inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition ${
-                                voted
-                                  ? 'cursor-not-allowed bg-slate-700 text-slate-400'
-                                  : 'bg-cyan-500 text-slate-950 hover:bg-cyan-400'
-                              }`}
-                            >
-                              {voted ? 'Votado' : 'Votar'}
-                            </button>
+                            {songId != null ? (
+                              <button
+                                type="button"
+                                onClick={() => handleVoteToggle(songId, voted)}
+                                className={`mt-4 inline-flex w-full items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition sm:w-auto ${
+                                  voted
+                                    ? 'border border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500'
+                                    : 'bg-cyan-500 text-slate-950 hover:bg-cyan-400'
+                                }`}
+                              >
+                                {voted ? 'Quitar voto' : 'Votar'}
+                              </button>
+                            ) : null}
                           </div>
                         )
                       })

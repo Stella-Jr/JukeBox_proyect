@@ -9,8 +9,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class SongService {
@@ -95,7 +98,7 @@ public class SongService {
         try {
             String responseBody = restClient.get()
                     .uri(YOUTUBE_VIDEOS_URL +
-                            "?part=snippet" +
+                            "?part=snippet,contentDetails" +
                             "&id=" + videoId +
                             "&key=" + apiKey)
                     .retrieve()
@@ -108,6 +111,7 @@ public class SongService {
 
                 JsonNode item = response.get("items").get(0);
                 JsonNode snippet = item.get("snippet");
+                JsonNode contentDetails = item.get("contentDetails");
 
                 String title = snippet.get("title").asText();
                 String channelTitle = snippet.get("channelTitle").asText();
@@ -116,9 +120,15 @@ public class SongService {
                         .get("medium")
                         .get("url")
                         .asText();
+                String categoryId = snippet.has("categoryId") ? snippet.get("categoryId").asText("") : "";
+                String duration = contentDetails != null && contentDetails.has("duration")
+                        ? contentDetails.get("duration").asText("")
+                        : "";
 
-                // Solo devolvemos ese video específico
-                results.add(new SongSearchResult(videoId, title, channelTitle, thumbnail));
+                if (isValidMusicVideo(categoryId, duration)) {
+                    // Solo devolvemos ese video específico si es música y < 10 minutos
+                    results.add(new SongSearchResult(videoId, title, channelTitle, thumbnail));
+                }
             }
 
         } catch (Exception e) {
@@ -156,23 +166,59 @@ public class SongService {
         JsonNode response = objectMapper.readTree(responseBody);
 
         if (response != null && response.has("items")) {
+            List<String> videoIds = new ArrayList<>();
             response.get("items").forEach(item -> {
                 try {
                     String videoId = item.get("id").get("videoId").asText();
-                    JsonNode snippet = item.get("snippet");
-                    String title = snippet.get("title").asText();
-                    String channelTitle = snippet.get("channelTitle").asText();
-                    String thumbnail = snippet
-                            .get("thumbnails")
-                            .get("medium")
-                            .get("url")
-                            .asText();
-
-                    results.add(new SongSearchResult(videoId, title, channelTitle, thumbnail));
+                    if (videoId != null && !videoId.isBlank()) {
+                        videoIds.add(videoId);
+                    }
                 } catch (Exception e) {
                     System.err.println("Error al procesar item: " + e.getMessage());
                 }
             });
+
+            if (!videoIds.isEmpty()) {
+                String idsCsv = videoIds.stream().collect(Collectors.joining(","));
+                String detailsBody = restClient.get()
+                        .uri(YOUTUBE_VIDEOS_URL +
+                                "?part=snippet,contentDetails" +
+                                "&id=" + idsCsv +
+                                "&key=" + apiKey)
+                        .retrieve()
+                        .body(String.class);
+
+                JsonNode detailsResponse = objectMapper.readTree(detailsBody);
+                if (detailsResponse != null && detailsResponse.has("items")) {
+                    detailsResponse.get("items").forEach(item -> {
+                        try {
+                            JsonNode snippet = item.get("snippet");
+                            JsonNode contentDetails = item.get("contentDetails");
+                            String categoryId = snippet.has("categoryId") ? snippet.get("categoryId").asText("") : "";
+                            String duration = contentDetails != null && contentDetails.has("duration")
+                                    ? contentDetails.get("duration").asText("")
+                                    : "";
+
+                            if (!isValidMusicVideo(categoryId, duration)) {
+                                return;
+                            }
+
+                            String videoId = item.get("id").asText();
+                            String title = snippet.get("title").asText();
+                            String channelTitle = snippet.get("channelTitle").asText();
+                            String thumbnail = snippet
+                                    .get("thumbnails")
+                                    .get("medium")
+                                    .get("url")
+                                    .asText();
+
+                            results.add(new SongSearchResult(videoId, title, channelTitle, thumbnail));
+                        } catch (Exception e) {
+                            System.err.println("Error al procesar detalle de video: " + e.getMessage());
+                        }
+                    });
+                }
+            }
         }
 
     } catch (Exception e) {
@@ -184,6 +230,18 @@ public class SongService {
     }
 
     return results;
+    }
+
+    private boolean isValidMusicVideo(String categoryId, String durationIso8601) {
+        if (!"10".equals(categoryId)) {
+            return false;
+        }
+        try {
+            Duration duration = Duration.parse(durationIso8601);
+            return duration.toMinutes() < 10;
+        } catch (DateTimeParseException ex) {
+            return false;
+        }
     }
 
     private void validateApiKey() {

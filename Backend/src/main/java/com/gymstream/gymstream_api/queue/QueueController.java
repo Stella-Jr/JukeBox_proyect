@@ -75,6 +75,13 @@ public class QueueController {
         return ResponseEntity.ok(next);
     }
 
+    @DeleteMapping("/{queueItemId}")
+    public ResponseEntity<Void> deleteQueueItem(@PathVariable Long queueItemId) {
+        Long roomId = queueService.deleteQueueItem(queueItemId);
+        notifyQueue(roomId);
+        return ResponseEntity.noContent().build();
+    }
+
     private void notifyQueue(Long roomId) {
         realtimeNotifier.notifyQueueRefreshed(roomId, queueService.getQueue(roomId));
     }

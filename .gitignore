@@ -48,6 +48,8 @@ yarn-error.log*
 ### Build outputs ###
 dist/
 build/
+.vite/
+host-player/
 
 ### Logs ###
 logs/

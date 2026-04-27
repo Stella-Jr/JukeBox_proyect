@@ -1,12 +1,17 @@
 package com.gymstream.gymstream_api.vote;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
 public interface VoteRepository extends JpaRepository<Vote, Long> {
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM Vote v WHERE v.queueItem.id = :queueItemId")
+    void deleteByQueueItemId(@Param("queueItemId") Long queueItemId);
 
     // Busca un voto específico de un usuario en un item de la cola
     Optional<Vote> findByQueueItemIdAndUserId(Long queueItemId, Long userId);

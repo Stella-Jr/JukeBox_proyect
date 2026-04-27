@@ -103,6 +103,39 @@ public class QueueService {
     }
 
     @Transactional
+    public QueueItem unvote(Long queueItemId, AppUser user) {
+        QueueItem item = queueRepository.findWithLockById(queueItemId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Cancion no encontrada en la cola"));
+        ensureUserBelongsToRoom(user, item.getRoom().getId());
+
+        Vote vote = voteRepository.findByQueueItemIdAndUserId(queueItemId, user.getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "No votaste esta cancion"));
+
+        voteRepository.delete(vote);
+        item.setVotesCount(voteRepository.countByQueueItemId(item.getId()));
+        return queueRepository.save(item);
+    }
+
+    @Transactional
+    public Long deleteQueueItem(Long queueItemId) {
+        QueueItem item = queueRepository.findById(queueItemId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Item no encontrado en la cola"));
+
+        if (item.getStatus() != QueueItem.QueueStatus.PENDING) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Solo se pueden eliminar canciones pendientes");
+        }
+
+        Long roomId = item.getRoom().getId();
+        voteRepository.deleteByQueueItemId(queueItemId);
+        queueRepository.delete(item);
+        return roomId;
+    }
+
+    @Transactional
     public QueueItem vote(Long queueItemId, AppUser user) {
         QueueItem item = queueRepository.findWithLockById(queueItemId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -151,18 +184,26 @@ public class QueueService {
 
         String lastArtist = null;
         if (!playingItems.isEmpty()) {
-            QueueItem currentlyPlaying = playingItems.get(0);
-            lastArtist = currentlyPlaying.getSong().getArtist();
-            currentlyPlaying.setStatus(QueueItem.QueueStatus.PLAYED);
-            currentlyPlaying.setPlayedAt(LocalDateTime.now());
-            queueRepository.save(currentlyPlaying);
+            LocalDateTime playedAt = LocalDateTime.now();
+            for (int i = 0; i < playingItems.size(); i++) {
+                QueueItem currentlyPlaying = playingItems.get(i);
+                if (i == 0 && currentlyPlaying.getSong() != null) {
+                    lastArtist = currentlyPlaying.getSong().getArtist();
+                }
 
-            Cooldown cooldown = new Cooldown();
-            cooldown.setRoom(currentlyPlaying.getRoom());
-            cooldown.setIdentifier(currentlyPlaying.getSong().getYoutubeId());
-            cooldown.setType(Cooldown.CooldownType.SONG);
-            cooldown.setExpiresAt(LocalDateTime.now().plusMinutes(15));
-            cooldownRepository.save(cooldown);
+                currentlyPlaying.setStatus(QueueItem.QueueStatus.PLAYED);
+                currentlyPlaying.setPlayedAt(playedAt);
+                queueRepository.save(currentlyPlaying);
+
+                if (currentlyPlaying.getSong() != null && currentlyPlaying.getSong().getYoutubeId() != null) {
+                    Cooldown cooldown = new Cooldown();
+                    cooldown.setRoom(currentlyPlaying.getRoom());
+                    cooldown.setIdentifier(currentlyPlaying.getSong().getYoutubeId());
+                    cooldown.setType(Cooldown.CooldownType.SONG);
+                    cooldown.setExpiresAt(playedAt.plusMinutes(15));
+                    cooldownRepository.save(cooldown);
+                }
+            }
         }
 
         List<QueueItem> pendingItems = queueRepository
