@@ -16,6 +16,17 @@ public class AppUserController {
         this.userService = userService;
     }
 
+    @PostMapping("/login")
+    public ResponseEntity<Map<String, Object>> login(@RequestBody LoginRequest request) {
+        AppUser user = userService.login(request.username(), request.password());
+
+        return ResponseEntity.ok(Map.of(
+                "token", user.getSessionToken(),
+                "userId", user.getId(),
+                "username", user.getUsername()
+        ));
+    }
+
     @PostMapping("/join")
     public ResponseEntity<Map<String, Object>> joinRoom(@Valid @RequestBody JoinRoomRequest request) {
         AppUser user = userService.joinRoom(request.code(), request.username());

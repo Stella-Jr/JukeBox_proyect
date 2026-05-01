@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import java.util.UUID;
+import java.util.Optional;
 
 @Service
 public class AppUserService {
@@ -13,9 +14,31 @@ public class AppUserService {
     private final AppUserRepository userRepository;
     private final RoomService roomService;
 
-    public AppUserService(AppUserRepository userRepository, RoomService roomService) {
-        this.userRepository = userRepository;
+    public AppUserService(AppUserRepository appUserRepository, RoomService roomService) {
+        this.userRepository = appUserRepository;
         this.roomService = roomService;
+    }
+
+   
+    public AppUser login(String username, String password) {
+        if (username == null || username.trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username requerido");
+        }
+        if (password == null || password.trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password requerido");
+        }
+
+    Optional<AppUser> userOpt = userRepository.findByUsername(username.trim());
+
+        AppUser user = userOpt.orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales inválidas"));
+
+        if (!user.getPassword().equals(password)) { // MVP sin hash
+         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales inválidas");
+        }
+
+        user.setSessionToken(UUID.randomUUID().toString());
+        return userRepository.save(user);
     }
 
     public AppUser joinRoom(String roomCode, String username) {

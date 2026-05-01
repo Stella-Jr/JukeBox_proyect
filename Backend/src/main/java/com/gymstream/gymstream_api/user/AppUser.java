@@ -22,9 +22,15 @@ public class AppUser {
 
     // Nombre de usuario, obligatorio y máximo 50 caracteres
     @NotBlank(message = "El nombre de usuario no puede estar vacío")
-    @Size(min = 1, max = 50, message = "El nombre debe tener entre 1 y 50 caracteres")
-    @Column(nullable = false, length = 50)
+    @Size(min = 1, max = 50, message = "El nombre debe tener entre 1 y 30 caracteres")
+    @Column(nullable = false, length = 50, unique = true)
     private String username;
+
+    // Password, obligatorio y maximo de 15 caracteres
+    @NotBlank(message = "La contraseña no puede estar vacía")
+    @Size(min = 4, max = 15)
+    @Column(nullable = false)
+    private String password;
 
     // Token de sesión único para autenticación
     @Column(name = "session_token", unique = true)
