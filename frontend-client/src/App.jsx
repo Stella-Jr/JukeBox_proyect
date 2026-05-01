@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
   username: 'jukebox_username',
   sessionToken: 'jukebox_sessionToken',
   votedSongs: 'jukebox_votedSongs',
+  authUser: 'jukebox_authUser', // TODO: conectar con backend auth
 }
 
 const SERVER_BASE = 'http://localhost:8080/api'
@@ -41,6 +42,8 @@ function readStoredVotes() {
 }
 
 function App() {
+  const [authStage, setAuthStage] = useState('login') // "login" | "home"
+  const [password, setPassword] = useState('')
   const [roomCode, setRoomCode] = useState('')
   const [roomDbId, setRoomDbId] = useState('')
   const [username, setUsername] = useState('')
@@ -59,13 +62,20 @@ function App() {
     const storedRoomDbId = localStorage.getItem(STORAGE_KEYS.roomDbId)
     const storedUser = localStorage.getItem(STORAGE_KEYS.username)
     const storedToken = localStorage.getItem(STORAGE_KEYS.sessionToken)
+    const storedAuthUser = localStorage.getItem(STORAGE_KEYS.authUser)
 
     setVotedSongs(readStoredVotes())
+
+    if (storedAuthUser) {
+      setUsername(storedAuthUser)
+      setAuthStage('home')
+    }
 
     if (storedRoomCode && storedRoomDbId && storedUser && storedToken) {
       setRoomCode(storedRoomCode)
       setRoomDbId(storedRoomDbId)
       setUsername(storedUser)
+      setAuthStage('home')
       setStage('dashboard')
       setStatusMessage(`Sesion cargada para ${storedUser}`)
     }
@@ -124,11 +134,34 @@ function App() {
     }
   }
 
+  // TODO: reemplazar por fetch(`${SERVER_BASE}/auth/login`, { method: 'POST', ... })
+  async function handleAuthLogin(event) {
+    event.preventDefault()
+
+    if (!username.trim() || !password.trim()) {
+      setStatusMessage('Completa usuario y contraseña.')
+      return
+    }
+
+    const trimmedUser = username.trim()
+    localStorage.setItem(STORAGE_KEYS.authUser, trimmedUser)
+    setUsername(trimmedUser)
+    setAuthStage('home')
+    setStatusMessage(`Bienvenido ${trimmedUser}`)
+    setPassword('')
+  }
+
   async function handleLogin(event) {
     event.preventDefault()
 
-    if (!roomCode.trim() || !username.trim()) {
-      setStatusMessage('Completa codigo de sala y nombre de usuario.')
+    if (!roomCode.trim()) {
+      setStatusMessage('Ingresa el codigo de sala.')
+      return
+    }
+
+    const currentUser = username.trim()
+    if (!currentUser) {
+      setStatusMessage('Debes iniciar sesion primero.')
       return
     }
 
@@ -136,7 +169,7 @@ function App() {
       const response = await fetch(`${SERVER_BASE}/rooms/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: roomCode.trim(), username: username.trim() }),
+        body: JSON.stringify({ code: roomCode.trim(), username: currentUser }),
       })
 
       if (!response.ok) throw new Error('No se pudo unir a la sala')
@@ -148,13 +181,13 @@ function App() {
       localStorage.setItem(STORAGE_KEYS.sessionToken, data.token)
       localStorage.setItem(STORAGE_KEYS.roomDbId, nextRoomDbId)
       localStorage.setItem(STORAGE_KEYS.roomCode, nextRoomCode)
-      localStorage.setItem(STORAGE_KEYS.username, username.trim())
+      localStorage.setItem(STORAGE_KEYS.username, currentUser)
 
       setRoomCode(nextRoomCode)
       setRoomDbId(nextRoomDbId)
-      setUsername(username.trim())
+      setUsername(currentUser)
       setStage('dashboard')
-      setStatusMessage(`Bienvenido ${username.trim()}`)
+      setStatusMessage(`Bienvenido ${currentUser}`)
     } catch {
       setStatusMessage('No se pudo conectar. Verifica el codigo de sala.')
     }
@@ -254,14 +287,34 @@ function App() {
 
   function clearSession() {
     Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key))
+    setAuthStage('login')
     setStage('login')
     setRoomCode('')
     setRoomDbId('')
     setUsername('')
+    setPassword('')
     setQueue([])
     setVotedSongs({})
     socketRef.current?.disconnect()
     socketRef.current = null
+  }
+
+  function handleLogout() {
+    localStorage.removeItem(STORAGE_KEYS.authUser)
+    setAuthStage('login')
+    setUsername('')
+    setPassword('')
+    setStatusMessage('Sesion cerrada')
+  }
+
+  function handleGoToRoomJoin() {
+    setStage('login')
+    setStatusMessage('Ingresa el codigo de sala para unirte')
+  }
+
+  function handleCreateRoom() {
+    // TODO: conectar con POST /api/rooms/create
+    setStatusMessage('Crear sala: pendiente de conectar con backend')
   }
 
   const nowPlaying = useMemo(() => queue.find((s) => s.status === 'PLAYING') || null, [queue])
@@ -297,10 +350,93 @@ function App() {
           {statusMessage && <p className="mt-4 text-sm text-slate-300">{statusMessage}</p>}
         </header>
 
-        {stage === 'login' ? (
+        {authStage === 'login' ? (
           <main className="space-y-6">
             <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-cyan-500/10">
-              <h2 className="text-xl font-semibold text-white">Acceso rapido</h2>
+              <h2 className="text-xl font-semibold text-white">Iniciar sesion</h2>
+              <form className="mt-6 space-y-4" onSubmit={handleAuthLogin}>
+                <label className="block text-sm text-slate-300">
+                  Usuario
+                  <input
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    className="mt-2 w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-emerald-400/80 focus:ring-2 focus:ring-emerald-500/20"
+                    placeholder="Tu nombre de usuario"
+                  />
+                </label>
+
+                <label className="block text-sm text-slate-300">
+                  Contraseña
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="mt-2 w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-emerald-400/80 focus:ring-2 focus:ring-emerald-500/20"
+                    placeholder="Tu contraseña"
+                  />
+                </label>
+
+                <button
+                  type="submit"
+                  className="w-full rounded-3xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-slate-950 shadow-xl shadow-cyan-500/20 transition hover:-translate-y-0.5 hover:shadow-cyan-500/30"
+                >
+                  Entrar
+                </button>
+              </form>
+            </section>
+          </main>
+        ) : authStage === 'home' && stage !== 'dashboard' ? (
+          <main className="space-y-6">
+            <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-cyan-500/10">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.32em] text-emerald-400/80">Jukebox</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">Bienvenido</h2>
+                  <p className="mt-1 text-sm text-slate-500">Usuario: {username}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-3xl border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
+                >
+                  Cerrar sesion
+                </button>
+              </div>
+            </section>
+
+            <section className="grid gap-6 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={handleCreateRoom}
+                className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-left shadow-xl shadow-cyan-500/10 transition hover:border-emerald-400/60 hover:-translate-y-0.5"
+              >
+                <p className="text-lg font-semibold text-white">Crear sala</p>
+                <p className="mt-1 text-sm text-slate-400">Crea una nueva sala para tu jukebox</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleGoToRoomJoin}
+                className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-left shadow-xl shadow-cyan-500/10 transition hover:border-cyan-400/60 hover:-translate-y-0.5"
+              >
+                <p className="text-lg font-semibold text-white">Unirse a sala</p>
+                <p className="mt-1 text-sm text-slate-400">Ingresa el codigo de una sala existente</p>
+              </button>
+            </section>
+          </main>
+        ) : stage === 'login' ? (
+          <main className="space-y-6">
+            <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-cyan-500/10">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Unirse a sala</h2>
+                <button
+                  type="button"
+                  onClick={() => { setStage('home'); setStatusMessage('') }}
+                  className="rounded-3xl border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
+                >
+                  Volver
+                </button>
+              </div>
               <form className="mt-6 space-y-4" onSubmit={handleLogin}>
                 <label className="block text-sm text-slate-300">
                   Codigo de sala
@@ -309,16 +445,6 @@ function App() {
                     onChange={(event) => setRoomCode(event.target.value)}
                     className="mt-2 w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-emerald-400/80 focus:ring-2 focus:ring-emerald-500/20"
                     placeholder="Ej. A3F9K2"
-                  />
-                </label>
-
-                <label className="block text-sm text-slate-300">
-                  Nombre de usuario
-                  <input
-                    value={username}
-                    onChange={(event) => setUsername(event.target.value)}
-                    className="mt-2 w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-emerald-400/80 focus:ring-2 focus:ring-emerald-500/20"
-                    placeholder="Ej. Lucia"
                   />
                 </label>
 
@@ -340,13 +466,22 @@ function App() {
                   <h2 className="mt-2 text-2xl font-semibold text-white">{roomCode}</h2>
                   <p className="mt-1 text-sm text-slate-500">Usuario: {username}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={clearSession}
-                  className="rounded-3xl border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
-                >
-                  Cambiar sala
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={clearSession}
+                    className="rounded-3xl border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
+                  >
+                    Cambiar sala
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="rounded-3xl border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-red-400 hover:text-red-200"
+                  >
+                    Cerrar sesion
+                  </button>
+                </div>
               </div>
             </section>
 
