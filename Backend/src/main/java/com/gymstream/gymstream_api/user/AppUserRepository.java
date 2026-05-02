@@ -10,4 +10,6 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     // para encontrar por username
     Optional<AppUser> findByUsername(String username);
 
+    // para verificar duplicados
+    boolean existsByUsername(String username);
 }

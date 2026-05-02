@@ -34,9 +34,36 @@ public class AppUserService {
                 new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales inválidas"));
 
         if (!user.getPassword().equals(password)) { // MVP sin hash
-         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales inválidas");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales inválidas");
         }
 
+        user.setSessionToken(UUID.randomUUID().toString());
+        return userRepository.save(user);
+    }
+
+    public AppUser register(String username, String password) {
+        if (username == null || username.trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username requerido");
+        }
+        if (password == null || password.trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password requerido");
+        }
+
+        String trimmedUsername = username.trim();
+        if (trimmedUsername.length() < 3 || trimmedUsername.length() > 50) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El username debe tener entre 3 y 50 caracteres");
+        }
+        if (password.length() < 4 || password.length() > 15) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El password debe tener entre 4 y 15 caracteres");
+        }
+
+        if (userRepository.existsByUsername(trimmedUsername)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El username ya esta en uso");
+        }
+
+        AppUser user = new AppUser();
+        user.setUsername(trimmedUsername);
+        user.setPassword(password);
         user.setSessionToken(UUID.randomUUID().toString());
         return userRepository.save(user);
     }

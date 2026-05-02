@@ -14,10 +14,9 @@ public class AppUser {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Relación con la sala, obligatoria
-    @NotNull(message = "El usuario debe estar asociado a una sala")
+    // Relación con la sala, se asigna al unirse a una sala
     @ManyToOne
-    @JoinColumn(name = "room_id")
+    @JoinColumn(name = "room_id", nullable = true)
     private Room room;
 
     // Nombre de usuario, obligatorio y máximo 50 caracteres

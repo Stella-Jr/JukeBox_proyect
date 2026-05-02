@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
+import { apiLogin, apiRegister } from './api/api'
 
 const STORAGE_KEYS = {
   roomCode: 'jukebox_roomCode',
@@ -7,7 +8,8 @@ const STORAGE_KEYS = {
   username: 'jukebox_username',
   sessionToken: 'jukebox_sessionToken',
   votedSongs: 'jukebox_votedSongs',
-  authUser: 'jukebox_authUser', // TODO: conectar con backend auth
+  authUser: 'jukebox_authUser',
+  userId: 'jukebox_userId',
 }
 
 const SERVER_BASE = 'http://localhost:8080/api'
@@ -43,6 +45,7 @@ function readStoredVotes() {
 
 function App() {
   const [authStage, setAuthStage] = useState('login') // "login" | "home"
+  const [authMode, setAuthMode] = useState('signin') // "signin" | "register"
   const [password, setPassword] = useState('')
   const [roomCode, setRoomCode] = useState('')
   const [roomDbId, setRoomDbId] = useState('')
@@ -134,7 +137,6 @@ function App() {
     }
   }
 
-  // TODO: reemplazar por fetch(`${SERVER_BASE}/auth/login`, { method: 'POST', ... })
   async function handleAuthLogin(event) {
     event.preventDefault()
 
@@ -143,12 +145,40 @@ function App() {
       return
     }
 
-    const trimmedUser = username.trim()
-    localStorage.setItem(STORAGE_KEYS.authUser, trimmedUser)
-    setUsername(trimmedUser)
-    setAuthStage('home')
-    setStatusMessage(`Bienvenido ${trimmedUser}`)
-    setPassword('')
+    try {
+      const data = await apiLogin(username.trim(), password.trim())
+      localStorage.setItem(STORAGE_KEYS.authUser, data.username)
+      localStorage.setItem(STORAGE_KEYS.sessionToken, data.token)
+      localStorage.setItem(STORAGE_KEYS.userId, String(data.userId))
+      setUsername(data.username)
+      setAuthStage('home')
+      setStatusMessage(`Bienvenido ${data.username}`)
+      setPassword('')
+    } catch (error) {
+      setStatusMessage(error.message || 'No se pudo iniciar sesion.')
+    }
+  }
+
+  async function handleRegister(event) {
+    event.preventDefault()
+
+    if (!username.trim() || !password.trim()) {
+      setStatusMessage('Completa usuario y contraseña.')
+      return
+    }
+
+    try {
+      const data = await apiRegister(username.trim(), password.trim())
+      localStorage.setItem(STORAGE_KEYS.authUser, data.username)
+      localStorage.setItem(STORAGE_KEYS.sessionToken, data.token)
+      localStorage.setItem(STORAGE_KEYS.userId, String(data.userId))
+      setUsername(data.username)
+      setAuthStage('home')
+      setStatusMessage(`Registro exitoso. Bienvenido ${data.username}`)
+      setPassword('')
+    } catch (error) {
+      setStatusMessage(error.message || 'No se pudo registrar.')
+    }
   }
 
   async function handleLogin(event) {
@@ -288,6 +318,7 @@ function App() {
   function clearSession() {
     Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key))
     setAuthStage('login')
+    setAuthMode('signin')
     setStage('login')
     setRoomCode('')
     setRoomDbId('')
@@ -301,7 +332,10 @@ function App() {
 
   function handleLogout() {
     localStorage.removeItem(STORAGE_KEYS.authUser)
+    localStorage.removeItem(STORAGE_KEYS.sessionToken)
+    localStorage.removeItem(STORAGE_KEYS.userId)
     setAuthStage('login')
+    setAuthMode('signin')
     setUsername('')
     setPassword('')
     setStatusMessage('Sesion cerrada')
@@ -353,8 +387,19 @@ function App() {
         {authStage === 'login' ? (
           <main className="space-y-6">
             <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-cyan-500/10">
-              <h2 className="text-xl font-semibold text-white">Iniciar sesion</h2>
-              <form className="mt-6 space-y-4" onSubmit={handleAuthLogin}>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">
+                  {authMode === 'signin' ? 'Iniciar sesion' : 'Crear cuenta'}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode(authMode === 'signin' ? 'register' : 'signin'); setStatusMessage('') }}
+                  className="rounded-3xl border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
+                >
+                  {authMode === 'signin' ? 'Registrarse' : 'Ya tengo cuenta'}
+                </button>
+              </div>
+              <form className="mt-6 space-y-4" onSubmit={authMode === 'signin' ? handleAuthLogin : handleRegister}>
                 <label className="block text-sm text-slate-300">
                   Usuario
                   <input
@@ -380,7 +425,7 @@ function App() {
                   type="submit"
                   className="w-full rounded-3xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-slate-950 shadow-xl shadow-cyan-500/20 transition hover:-translate-y-0.5 hover:shadow-cyan-500/30"
                 >
-                  Entrar
+                  {authMode === 'signin' ? 'Entrar' : 'Registrarse'}
                 </button>
               </form>
             </section>
