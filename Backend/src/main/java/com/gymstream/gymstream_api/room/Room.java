@@ -1,5 +1,6 @@
 package com.gymstream.gymstream_api.room;
 
+import com.gymstream.gymstream_api.user.AppUser;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.Data;
@@ -23,6 +24,11 @@ public class Room {
     @Size(max = 100, message = "El nombre no puede exceder 100 caracteres")
     @Column(length = 100)
     private String name;
+
+    // Usuario propietario/creador de la sala
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_user_id", nullable = true)
+    private AppUser owner;
 
     // Estado de la sala (activa o inactiva)
     @Column(name = "is_active")

@@ -44,6 +44,7 @@ async function fetchQueue(roomId: string): Promise<QueueItem[]> {
 export function HostPage({ roomId }: { roomId: string }) {
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [resolvedRoomId, setResolvedRoomId] = useState<string | null>(null)
+  const [roomCode, setRoomCode] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const socketRef = useRef<ReturnType<typeof io> | null>(null)
@@ -128,6 +129,13 @@ export function HostPage({ roomId }: { roomId: string }) {
     const isNumericId = /^\d+$/.test(candidate)
     if (isNumericId) {
       setResolvedRoomId(candidate)
+      fetch(`${SERVER_BASE}/rooms/${encodeURIComponent(candidate)}`)
+        .then(async (response) => {
+          if (!response.ok) return
+          const data = (await response.json()) as RoomLookupResponse
+          if (data?.code) setRoomCode(data.code)
+        })
+        .catch(() => { /* no-op: room code lookup is optional for numeric IDs */ })
       return
     }
 
@@ -139,6 +147,7 @@ export function HostPage({ roomId }: { roomId: string }) {
         if (!data?.id) throw new Error('Room id missing')
         if (!cancelled) {
           setResolvedRoomId(String(data.id))
+          if (data.code) setRoomCode(data.code)
           setStatusMessage('')
         }
       })
@@ -229,6 +238,15 @@ export function HostPage({ roomId }: { roomId: string }) {
     bootstrappedRef.current = false
   }, [resolvedRoomId])
 
+  function handleCopyRoomCode() {
+    const code = roomCode || roomId
+    navigator.clipboard.writeText(code).then(() => {
+      setStatusMessage('Codigo de sala copiado')
+    }).catch(() => {
+      setStatusMessage('No se pudo copiar el codigo')
+    })
+  }
+
   function parseQueueItemId(raw: number | string | undefined): number | null {
     if (raw == null || raw === '') return null
     const n = typeof raw === 'number' ? raw : Number.parseInt(String(raw), 10)
@@ -288,6 +306,26 @@ export function HostPage({ roomId }: { roomId: string }) {
           </div>
           {statusMessage ? <p className="mt-4 text-sm text-amber-200/90">{statusMessage}</p> : null}
         </header>
+
+        {roomCode && (
+          <section className="mb-6 rounded-3xl border-2 border-emerald-500/40 bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 p-6 shadow-xl shadow-emerald-500/10">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm uppercase tracking-[0.32em] text-emerald-400">Comparte este codigo</p>
+                <div className="mt-2 flex items-center gap-3">
+                  <span className="rounded-xl bg-slate-950 px-5 py-3 text-2xl font-mono font-bold tracking-[0.2em] text-white">{roomCode}</span>
+                  <button
+                    type="button"
+                    onClick={handleCopyRoomCode}
+                    className="rounded-full border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
+                  >
+                    Copiar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         <main className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <section className="space-y-6">

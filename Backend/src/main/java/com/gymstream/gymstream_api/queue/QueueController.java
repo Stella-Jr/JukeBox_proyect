@@ -47,21 +47,6 @@ public class QueueController {
         return ResponseEntity.status(HttpStatus.CREATED).body(new QueueItemDTO(item, item.getVotesCount()));
     }
 
-    @PostMapping("/vote/{queueId}")
-    public ResponseEntity<Map<String, Object>> vote(
-            @PathVariable Long queueId,
-            @RequestHeader("X-Session-Token") String sessionToken) {
-
-        AppUser user = userService.getUserBySessionToken(sessionToken);
-        QueueItem item = queueService.vote(queueId, user);
-        notifyQueue(item.getRoom().getId());
-
-        return ResponseEntity.ok(Map.of(
-                "newScore", item.getVotesCount(),
-                "queueId", item.getId()
-        ));
-    }
-
     @GetMapping("/{roomId}")
     public ResponseEntity<List<QueueItemDTO>> getQueue(@PathVariable Long roomId) {
         List<QueueItemDTO> queue = queueService.getQueue(roomId);

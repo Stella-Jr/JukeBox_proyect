@@ -25,3 +25,19 @@ export async function apiLogin(username: string, password: string) {
   }
   return res.json();
 }
+
+export async function apiCreateRoom(name: string, sessionToken: string) {
+  const res = await fetch(`${API_URL}/rooms`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Session-Token": sessionToken,
+    },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.message || "Error al crear la sala");
+  }
+  return res.json();
+}

@@ -92,13 +92,21 @@ public class AppUserService {
             throw new RuntimeException("La sala no está activa");
         }
 
+        String trimmedUsername = username.trim();
+        Optional<AppUser> existingUserOpt = userRepository.findByUsername(trimmedUsername);
+
+        if (existingUserOpt.isPresent()) {
+            AppUser user = existingUserOpt.get();
+            user.setRoom(room);
+            user.setSessionToken(UUID.randomUUID().toString());
+            return userRepository.save(user);
+        }
+
         // Crear nuevo usuario con token único de sesión
-        // El sessionToken se usa para identificar la sesión del usuario en el cliente
         AppUser user = new AppUser();
-        user.setUsername(username.trim());
+        user.setUsername(trimmedUsername);
         user.setRoom(room);
         user.setSessionToken(UUID.randomUUID().toString());
-
         return userRepository.save(user);
     }
 

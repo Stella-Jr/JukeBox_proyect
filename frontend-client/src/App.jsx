@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
-import { apiLogin, apiRegister } from './api/api'
+import { apiLogin, apiRegister, apiCreateRoom } from './api/api'
 
 const STORAGE_KEYS = {
   roomCode: 'jukebox_roomCode',
@@ -58,6 +58,12 @@ function App() {
   const [statusMessage, setStatusMessage] = useState('')
   const [connected, setConnected] = useState(false)
   const [votedSongs, setVotedSongs] = useState({})
+  const [showCreateRoomModal, setShowCreateRoomModal] = useState(false)
+  const [roomName, setRoomName] = useState('')
+  const [creatingRoom, setCreatingRoom] = useState(false)
+  const [showJoinRoomModal, setShowJoinRoomModal] = useState(false)
+  const [joinRoomCode, setJoinRoomCode] = useState('')
+  const [joiningRoom, setJoiningRoom] = useState(false)
   const socketRef = useRef(null)
 
   useEffect(() => {
@@ -181,48 +187,6 @@ function App() {
     }
   }
 
-  async function handleLogin(event) {
-    event.preventDefault()
-
-    if (!roomCode.trim()) {
-      setStatusMessage('Ingresa el codigo de sala.')
-      return
-    }
-
-    const currentUser = username.trim()
-    if (!currentUser) {
-      setStatusMessage('Debes iniciar sesion primero.')
-      return
-    }
-
-    try {
-      const response = await fetch(`${SERVER_BASE}/rooms/join`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: roomCode.trim(), username: currentUser }),
-      })
-
-      if (!response.ok) throw new Error('No se pudo unir a la sala')
-
-      const data = await response.json()
-      const nextRoomCode = data.roomCode || roomCode.trim()
-      const nextRoomDbId = String(data.roomId)
-
-      localStorage.setItem(STORAGE_KEYS.sessionToken, data.token)
-      localStorage.setItem(STORAGE_KEYS.roomDbId, nextRoomDbId)
-      localStorage.setItem(STORAGE_KEYS.roomCode, nextRoomCode)
-      localStorage.setItem(STORAGE_KEYS.username, currentUser)
-
-      setRoomCode(nextRoomCode)
-      setRoomDbId(nextRoomDbId)
-      setUsername(currentUser)
-      setStage('dashboard')
-      setStatusMessage(`Bienvenido ${currentUser}`)
-    } catch {
-      setStatusMessage('No se pudo conectar. Verifica el codigo de sala.')
-    }
-  }
-
   async function handleSearch(event) {
     event.preventDefault()
     const query = searchQuery.trim()
@@ -326,6 +290,10 @@ function App() {
     setPassword('')
     setQueue([])
     setVotedSongs({})
+    setShowCreateRoomModal(false)
+    setRoomName('')
+    setShowJoinRoomModal(false)
+    setJoinRoomCode('')
     socketRef.current?.disconnect()
     socketRef.current = null
   }
@@ -342,13 +310,87 @@ function App() {
   }
 
   function handleGoToRoomJoin() {
-    setStage('login')
-    setStatusMessage('Ingresa el codigo de sala para unirte')
+    setJoinRoomCode('')
+    setShowJoinRoomModal(true)
+    setStatusMessage('')
   }
 
   function handleCreateRoom() {
-    // TODO: conectar con POST /api/rooms/create
-    setStatusMessage('Crear sala: pendiente de conectar con backend')
+    setRoomName('')
+    setShowCreateRoomModal(true)
+    setStatusMessage('')
+  }
+
+  async function handleConfirmCreateRoom() {
+    const trimmed = roomName.trim()
+    if (!trimmed) {
+      setStatusMessage('El nombre de la sala es obligatorio')
+      return
+    }
+    if (trimmed.length < 3) {
+      setStatusMessage('El nombre debe tener al menos 3 caracteres')
+      return
+    }
+    const token = localStorage.getItem(STORAGE_KEYS.sessionToken)
+    if (!token) {
+      setStatusMessage('Debes iniciar sesion primero.')
+      return
+    }
+    setCreatingRoom(true)
+    try {
+      const data = await apiCreateRoom(trimmed, token)
+      localStorage.setItem(STORAGE_KEYS.roomCode, data.code)
+      localStorage.setItem(STORAGE_KEYS.roomDbId, String(data.id))
+      setRoomCode(data.code)
+      setRoomDbId(String(data.id))
+      setShowCreateRoomModal(false)
+      setRoomName('')
+      window.location.href = `/host/${data.code}`
+    } catch (error) {
+      setStatusMessage(error.message || 'No se pudo crear la sala')
+    } finally {
+      setCreatingRoom(false)
+    }
+  }
+
+  async function handleConfirmJoinRoom() {
+    const trimmed = joinRoomCode.trim().toUpperCase()
+    if (!trimmed) {
+      setStatusMessage('El codigo de sala es obligatorio')
+      return
+    }
+    const currentUser = username.trim()
+    if (!currentUser) {
+      setStatusMessage('Debes iniciar sesion primero.')
+      return
+    }
+    setJoiningRoom(true)
+    try {
+      const response = await fetch(`${SERVER_BASE}/rooms/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: trimmed, username: currentUser }),
+      })
+      if (!response.ok) throw new Error('No se pudo unir a la sala')
+      const data = await response.json()
+      const nextRoomCode = data.roomCode || trimmed
+      const nextRoomDbId = String(data.roomId)
+      localStorage.setItem(STORAGE_KEYS.sessionToken, data.token)
+      localStorage.setItem(STORAGE_KEYS.roomDbId, nextRoomDbId)
+      localStorage.setItem(STORAGE_KEYS.roomCode, nextRoomCode)
+      localStorage.setItem(STORAGE_KEYS.username, currentUser)
+      setRoomCode(nextRoomCode)
+      setRoomDbId(nextRoomDbId)
+      setUsername(currentUser)
+      setShowJoinRoomModal(false)
+      setJoinRoomCode('')
+      setStage('dashboard')
+      setStatusMessage(`Bienvenido ${currentUser}`)
+    } catch (error) {
+      setStatusMessage(error.message || 'No se pudo conectar. Verifica el codigo de sala.')
+    } finally {
+      setJoiningRoom(false)
+    }
   }
 
   const nowPlaying = useMemo(() => queue.find((s) => s.status === 'PLAYING') || null, [queue])
@@ -467,39 +509,6 @@ function App() {
                 <p className="text-lg font-semibold text-white">Unirse a sala</p>
                 <p className="mt-1 text-sm text-slate-400">Ingresa el codigo de una sala existente</p>
               </button>
-            </section>
-          </main>
-        ) : stage === 'login' ? (
-          <main className="space-y-6">
-            <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-cyan-500/10">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Unirse a sala</h2>
-                <button
-                  type="button"
-                  onClick={() => { setStage('home'); setStatusMessage('') }}
-                  className="rounded-3xl border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
-                >
-                  Volver
-                </button>
-              </div>
-              <form className="mt-6 space-y-4" onSubmit={handleLogin}>
-                <label className="block text-sm text-slate-300">
-                  Codigo de sala
-                  <input
-                    value={roomCode}
-                    onChange={(event) => setRoomCode(event.target.value)}
-                    className="mt-2 w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-emerald-400/80 focus:ring-2 focus:ring-emerald-500/20"
-                    placeholder="Ej. A3F9K2"
-                  />
-                </label>
-
-                <button
-                  type="submit"
-                  className="w-full rounded-3xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-slate-950 shadow-xl shadow-cyan-500/20 transition hover:-translate-y-0.5 hover:shadow-cyan-500/30"
-                >
-                  Entrar a la sala
-                </button>
-              </form>
             </section>
           </main>
         ) : (
@@ -685,6 +694,94 @@ function App() {
               </aside>
             </section>
           </main>
+        )}
+
+        {showCreateRoomModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateRoomModal(false)}>
+            <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-8 shadow-2xl shadow-cyan-500/20" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-2xl font-semibold text-white">Crear sala</h2>
+              <p className="mt-2 text-sm text-slate-400">Elige un nombre para tu sala de jukebox</p>
+
+              <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); handleConfirmCreateRoom() }}>
+                <label className="block text-sm text-slate-300">
+                  Nombre de la sala
+                  <input
+                    value={roomName}
+                    onChange={(e) => { setRoomName(e.target.value); setStatusMessage('') }}
+                    className="mt-2 w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-emerald-400/80 focus:ring-2 focus:ring-emerald-500/20"
+                    placeholder="Ej. Mi Jukebox"
+                    maxLength={100}
+                    autoFocus
+                  />
+                </label>
+
+                {statusMessage && !statusMessage.startsWith('Conectado') && !statusMessage.startsWith('Desconectado') && !statusMessage.startsWith('Cola') && !statusMessage.startsWith('No se pudo cargar') && (
+                  <p className="text-sm text-amber-300">{statusMessage}</p>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setShowCreateRoomModal(false); setRoomName(''); setStatusMessage('') }}
+                    className="flex-1 rounded-3xl border border-slate-700 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-500"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creatingRoom || !roomName.trim()}
+                    className="flex-1 rounded-3xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-slate-950 shadow-xl shadow-cyan-500/20 transition hover:-translate-y-0.5 hover:shadow-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {creatingRoom ? 'Creando...' : 'Crear'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showJoinRoomModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowJoinRoomModal(false)}>
+            <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-8 shadow-2xl shadow-cyan-500/20" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-2xl font-semibold text-white">Unirse a sala</h2>
+              <p className="mt-2 text-sm text-slate-400">Ingresa el codigo de sala para entrar como invitado</p>
+
+              <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); handleConfirmJoinRoom() }}>
+                <label className="block text-sm text-slate-300">
+                  Codigo de sala
+                  <input
+                    value={joinRoomCode}
+                    onChange={(e) => { setJoinRoomCode(e.target.value.toUpperCase()); setStatusMessage('') }}
+                    className="mt-2 w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-emerald-400/80 focus:ring-2 focus:ring-emerald-500/20"
+                    placeholder="Ej. A3F9K2"
+                    maxLength={10}
+                    autoFocus
+                  />
+                </label>
+
+                {statusMessage && !statusMessage.startsWith('Conectado') && !statusMessage.startsWith('Desconectado') && !statusMessage.startsWith('Cola') && !statusMessage.startsWith('No se pudo cargar') && (
+                  <p className="text-sm text-amber-300">{statusMessage}</p>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setShowJoinRoomModal(false); setJoinRoomCode(''); setStatusMessage('') }}
+                    className="flex-1 rounded-3xl border border-slate-700 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-500"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={joiningRoom || !joinRoomCode.trim()}
+                    className="flex-1 rounded-3xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-slate-950 shadow-xl shadow-cyan-500/20 transition hover:-translate-y-0.5 hover:shadow-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {joiningRoom ? 'Entrando...' : 'Entrar'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
       </div>
     </div>
